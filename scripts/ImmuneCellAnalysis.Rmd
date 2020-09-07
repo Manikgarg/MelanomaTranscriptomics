@@ -180,147 +180,147 @@ for (cellType in unique(allJeremieGenes$CellType)){
 ## Perform correlation analysis
 
 ```{r}
-directionOfPointFromALine = function(pointOfInterest, yIntercept, slope){
-  yOnTheLine = pointOfInterest[1]*slope + yIntercept 
-  if(slope < 0){
-   directionOfPoint = ifelse(pointOfInterest[2] > yOnTheLine, "right", "left") 
-  }
-  else{
-    directionOfPoint = ifelse(pointOfInterest[2] > yOnTheLine, "left", "right") 
-  }
-  return(directionOfPoint)
-}
-
-ratioOfEventMetSamplesOnEachSideOfTheLine = function(directionOfPoints, eventMet){
-  leftYes = intersect(names(directionOfPoints[directionOfPoints == "left"]) , rownames(eventMet[eventMet$EventMet == "Yes", ]))
-  leftNo = intersect(names(directionOfPoints[directionOfPoints == "left"]) , rownames(eventMet[eventMet$EventMet == "No", ]))
-  rightYes = intersect(names(directionOfPoints[directionOfPoints == "right"]) , rownames(eventMet[eventMet$EventMet == "Yes", ]))
-  rightNo = intersect(names(directionOfPoints[directionOfPoints == "right"]) , rownames(eventMet[eventMet$EventMet == "No", ]))
-  
-  ratioLeft = (length(leftYes)/length(rownames(eventMet[eventMet$EventMet == "Yes", ])))/(length(leftNo)/length(rownames(eventMet[eventMet$EventMet == "No", ])))
-
-  ratioRight = (length(rightYes)/length(rownames(eventMet[eventMet$EventMet == "Yes", ])))/(length(rightNo)/length(rownames(eventMet[eventMet$EventMet == "No", ])))
-  
-  return(list(ratioLeft, ratioRight))
-}
+# directionOfPointFromALine = function(pointOfInterest, yIntercept, slope){
+#   yOnTheLine = pointOfInterest[1]*slope + yIntercept 
+#   if(slope < 0){
+#    directionOfPoint = ifelse(pointOfInterest[2] > yOnTheLine, "right", "left") 
+#   }
+#   else{
+#     directionOfPoint = ifelse(pointOfInterest[2] > yOnTheLine, "left", "right") 
+#   }
+#   return(directionOfPoint)
+# }
+# 
+# ratioOfEventMetSamplesOnEachSideOfTheLine = function(directionOfPoints, eventMet){
+#   leftYes = intersect(names(directionOfPoints[directionOfPoints == "left"]) , rownames(eventMet[eventMet$EventMet == "Yes", ]))
+#   leftNo = intersect(names(directionOfPoints[directionOfPoints == "left"]) , rownames(eventMet[eventMet$EventMet == "No", ]))
+#   rightYes = intersect(names(directionOfPoints[directionOfPoints == "right"]) , rownames(eventMet[eventMet$EventMet == "Yes", ]))
+#   rightNo = intersect(names(directionOfPoints[directionOfPoints == "right"]) , rownames(eventMet[eventMet$EventMet == "No", ]))
+#   
+#   ratioLeft = (length(leftYes)/length(rownames(eventMet[eventMet$EventMet == "Yes", ])))/(length(leftNo)/length(rownames(eventMet[eventMet$EventMet == "No", ])))
+# 
+#   ratioRight = (length(rightYes)/length(rownames(eventMet[eventMet$EventMet == "Yes", ])))/(length(rightNo)/length(rownames(eventMet[eventMet$EventMet == "No", ])))
+#   
+#   return(list(ratioLeft, ratioRight))
+# }
 
 ```
 
 
 ```{r}
-#commonGenesWithOurSignature = intersect(allJeremieGenes$Gene, rownames(expressionData))
-#library("robustbase")
-dfCoeff = data.frame()
-#geneExpressionDf = t(data.frame(RiskGroup))
-suppressPackageStartupMessages(library(robustbase))
-metastasesSamples = colData(vsd)[, c("RNA.Seq.Sample", "EventMet")]
-
-for (cellType in unique(allJeremieGenes$CellType)){
-  select = rownames(res.annot)[which(res.annot$Name %in% allJeremieGenes$Gene[allJeremieGenes$CellType == cellType])]  
-  expressionDataForCellType = data.frame(assay(vsd)[select, ])
-  #rownames(expressionDataForCellType) = res.annot$Name[which(rownames(res.annot) %in% select)]
-  #print(rownames(expressionDataForCellType))
-  #Replace ENSEMBL IDs with corresponding gene names
-  medianCellSignature = apply(expressionDataForCellType, 2, median)
-  
-  model = lmrob(medianCellSignature ~ reducedGeneSignature)
-  
-  #Extract values corresponding to EventMet = "Yes"
-  x1 = reducedGeneSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "Yes", ]))]
-  y1 = medianCellSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "Yes", ]))]
-  
-  #Extract values corresponding to EventMet = "No"
-  x2 = reducedGeneSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "No", ]))]
-  y2 = medianCellSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "No", ]))]
-
-  pdf(paste("Angelova", cellType, "Vs", group, ".pdf", sep = ""))
-  plot(x = x1, y = y1, xlab = "Weighted Cam_121 score (standardized)", ylab = paste("Median", cellType, "expression", sep = " "), col = "red", xlim=c(min(c(x1, x2)) - 1 , max(c(x1, x2)) + 1), 
-       ylim = c(min(c(y1, y2)) - 1 , max(c(y1, y2)) + 1))
-  points(x = x2, y = y2, col = "blue")
-  abline(model)
-  #text(x = min(c(x1, x2)), y = max(c(y1, y2)), labels = paste("R = ", signif(sqrt(summary(model)$r.squared), digits = 4)))
-  
-  #Add a perpendicular line to the fitted line above, passing through the Median x and Median y, and print the ratio of Yes/No samples on each side of this perpendicular line.
-  combinedPoints = cbind(reducedGeneSignature, medianCellSignature) 
-  medianPoint = apply(combinedPoints, 2, median)
-  slopeOfPerpendicular = (-1/coef(model)[[2]])
-  yIntercept = medianPoint[2] - medianPoint[1]*slopeOfPerpendicular
-  abline(a = yIntercept, b = slopeOfPerpendicular , col = "grey", lty = "dashed")
-  directionOfPoints = apply(combinedPoints, 1, function (x) directionOfPointFromALine(x, yIntercept = yIntercept, slope = slopeOfPerpendicular))
-  ratios = ratioOfEventMetSamplesOnEachSideOfTheLine(directionOfPoints, metastasesSamples)
-  #text(x = min(c(x1, x2)), y = min(c(y1, y2)), labels = paste("Yes/No = ", signif(ratios[[1]], digits = 4)), col = "grey")
-  #text(x = max(c(x1, x2)), y = min(c(y1, y2)), labels = paste("Yes/No = ", signif(ratios[[2]], digits = 4)), col = "grey")
-  
-  legend(x = "topright",legend = unique(colData(vsd)$EventMet),col=c("red", "blue"),pch=1,title = "Metastases")
-  dev.off()
-
-  res = data.frame("Score" = signif(sqrt(summary(model)$r.squared), digits = 4))
-  res$CellType = cellType
-  res$RatioYesVsNoLeft = ratios[[1]]
-  res$RatioYesVsNoRight = ratios[[2]]
-
-  dfCoeff = rbind(res, dfCoeff)
-  # Histogram of residuals looks approximately normal
-  #hist(residuals(model), col="darkgray")
-  #plot(model)
-  
- # medianCellSignature = t(data.frame(medianCellSignature))
- # rownames(medianCellSignature) = cellType
- # geneExpressionDf = rbind(geneExpressionDf, medianCellSignature)
-}
+# #commonGenesWithOurSignature = intersect(allJeremieGenes$Gene, rownames(expressionData))
+# #library("robustbase")
+# dfCoeff = data.frame()
+# #geneExpressionDf = t(data.frame(RiskGroup))
+# suppressPackageStartupMessages(library(robustbase))
+# metastasesSamples = colData(vsd)[, c("RNA.Seq.Sample", "EventMet")]
+# 
+# for (cellType in unique(allJeremieGenes$CellType)){
+#   select = rownames(res.annot)[which(res.annot$Name %in% allJeremieGenes$Gene[allJeremieGenes$CellType == cellType])]  
+#   expressionDataForCellType = data.frame(assay(vsd)[select, ])
+#   #rownames(expressionDataForCellType) = res.annot$Name[which(rownames(res.annot) %in% select)]
+#   #print(rownames(expressionDataForCellType))
+#   #Replace ENSEMBL IDs with corresponding gene names
+#   medianCellSignature = apply(expressionDataForCellType, 2, median)
+#   
+#   model = lmrob(medianCellSignature ~ reducedGeneSignature)
+#   
+#   #Extract values corresponding to EventMet = "Yes"
+#   x1 = reducedGeneSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "Yes", ]))]
+#   y1 = medianCellSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "Yes", ]))]
+#   
+#   #Extract values corresponding to EventMet = "No"
+#   x2 = reducedGeneSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "No", ]))]
+#   y2 = medianCellSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "No", ]))]
+# 
+#   pdf(paste("Angelova", cellType, "Vs", group, ".pdf", sep = ""))
+#   plot(x = x1, y = y1, xlab = "Weighted Cam_121 score (standardized)", ylab = paste("Median", cellType, "expression", sep = " "), col = "red", xlim=c(min(c(x1, x2)) - 1 , max(c(x1, x2)) + 1), 
+#        ylim = c(min(c(y1, y2)) - 1 , max(c(y1, y2)) + 1))
+#   points(x = x2, y = y2, col = "blue")
+#   abline(model)
+#   #text(x = min(c(x1, x2)), y = max(c(y1, y2)), labels = paste("R = ", signif(sqrt(summary(model)$r.squared), digits = 4)))
+#   
+#   #Add a perpendicular line to the fitted line above, passing through the Median x and Median y, and print the ratio of Yes/No samples on each side of this perpendicular line.
+#   combinedPoints = cbind(reducedGeneSignature, medianCellSignature) 
+#   medianPoint = apply(combinedPoints, 2, median)
+#   slopeOfPerpendicular = (-1/coef(model)[[2]])
+#   yIntercept = medianPoint[2] - medianPoint[1]*slopeOfPerpendicular
+#   abline(a = yIntercept, b = slopeOfPerpendicular , col = "grey", lty = "dashed")
+#   directionOfPoints = apply(combinedPoints, 1, function (x) directionOfPointFromALine(x, yIntercept = yIntercept, slope = slopeOfPerpendicular))
+#   ratios = ratioOfEventMetSamplesOnEachSideOfTheLine(directionOfPoints, metastasesSamples)
+#   #text(x = min(c(x1, x2)), y = min(c(y1, y2)), labels = paste("Yes/No = ", signif(ratios[[1]], digits = 4)), col = "grey")
+#   #text(x = max(c(x1, x2)), y = min(c(y1, y2)), labels = paste("Yes/No = ", signif(ratios[[2]], digits = 4)), col = "grey")
+#   
+#   legend(x = "topright",legend = unique(colData(vsd)$EventMet),col=c("red", "blue"),pch=1,title = "Metastases")
+#   dev.off()
+# 
+#   res = data.frame("Score" = signif(sqrt(summary(model)$r.squared), digits = 4))
+#   res$CellType = cellType
+#   res$RatioYesVsNoLeft = ratios[[1]]
+#   res$RatioYesVsNoRight = ratios[[2]]
+# 
+#   dfCoeff = rbind(res, dfCoeff)
+#   # Histogram of residuals looks approximately normal
+#   #hist(residuals(model), col="darkgray")
+#   #plot(model)
+#   
+#  # medianCellSignature = t(data.frame(medianCellSignature))
+#  # rownames(medianCellSignature) = cellType
+#  # geneExpressionDf = rbind(geneExpressionDf, medianCellSignature)
+# }
 ```
 
 ## Repeat the analysis for all celltypes together to get the Immune score for Angelova
 ```{r}
-library(robustbase)
-select = rownames(res.annot)[which(res.annot$Name %in% allJeremieGenes$Gene)] 
-expressionDataForCellType = data.frame(assay(vsd)[select, ])
-medianCellSignature = apply(expressionDataForCellType, 2, median)
-model = lmrob(medianCellSignature ~ reducedGeneSignature)
-  
-  #Extract values corresponding to EventMet = "Yes"
-  x1 = reducedGeneSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "Yes", ]))]
-  y1 = medianCellSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "Yes", ]))]
-  
-  #Extract values corresponding to EventMet = "No"
-  x2 = reducedGeneSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "No", ]))]
-  y2 = medianCellSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "No", ]))]
-
-  pdf(paste("AngelovaAll", "Vs", group, ".pdf", sep = ""))
-  plot(x = x1, y = y1, xlab = "Weighted Cam_121 score (standardized)", ylab = "All immune cells' expression", col = "red", pch = 21, 
-       xlim=c(min(c(x1, x2)) - 1 , max(c(x1, x2)) + 1),
-       ylim = c(min(c(y1, y2)) - 1 , max(c(y1, y2)) + 1))
-  points(x = x2, y = y2, col = "blue", pch = 21)
-  abline(model)
-  #text(x = min(c(x1, x2)), y = max(c(y1, y2)), labels = paste("R = ", signif(sqrt(summary(model)$r.squared), digits = 4)))
-  
-  #Add a perpendicular line to the fitted line above, passing through the Median x and Median y, and print the ratio of Yes/No samples on each side of this perpendicular line.
-  combinedPoints = cbind(reducedGeneSignature, medianCellSignature) 
-  medianPoint = apply(combinedPoints, 2, median)
-  slopeOfPerpendicular = (-1/coef(model)[[2]])
-  yIntercept = medianPoint[2] - medianPoint[1]*slopeOfPerpendicular
-  abline(a = yIntercept, b = slopeOfPerpendicular , col = "grey", lty = "dashed")
-  directionOfPoints = apply(combinedPoints, 1, function (x) directionOfPointFromALine(x, yIntercept = yIntercept, slope = slopeOfPerpendicular))
-  ratios = ratioOfEventMetSamplesOnEachSideOfTheLine(directionOfPoints, metastasesSamples)
-  #text(x = min(c(x1, x2)), y = min(c(y1, y2)), labels = paste("Yes/No = ", signif(ratios[[1]], digits = 4)), col = "grey")
-  #text(x = max(c(x1, x2)), y = min(c(y1, y2)), labels = paste("Yes/No = ", signif(ratios[[2]], digits = 4)), col = "grey")
-  
-  legend(x = "topright",legend = unique(colData(vsd)$EventMet),col=c("red", "blue"), pch=21, title = "Metastases")
-  dev.off()
-  
-  res = data.frame("Score" = signif(sqrt(summary(model)$r.squared), digits = 4))
-  res$CellType = "ImmuneCells"
-  res$RatioYesVsNoLeft = ratios[[1]]
-  res$RatioYesVsNoRight = ratios[[2]]
-  #res$PearsonCoeff = corr.test(x = , y = )
-
-  dfCoeff = rbind(res, dfCoeff)
+# library(robustbase)
+# select = rownames(res.annot)[which(res.annot$Name %in% allJeremieGenes$Gene)] 
+# expressionDataForCellType = data.frame(assay(vsd)[select, ])
+# medianCellSignature = apply(expressionDataForCellType, 2, median)
+# model = lmrob(medianCellSignature ~ reducedGeneSignature)
+#   
+#   #Extract values corresponding to EventMet = "Yes"
+#   x1 = reducedGeneSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "Yes", ]))]
+#   y1 = medianCellSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "Yes", ]))]
+#   
+#   #Extract values corresponding to EventMet = "No"
+#   x2 = reducedGeneSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "No", ]))]
+#   y2 = medianCellSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "No", ]))]
+# 
+#   pdf(paste("AngelovaAll", "Vs", group, ".pdf", sep = ""))
+#   plot(x = x1, y = y1, xlab = "Weighted Cam_121 score (standardized)", ylab = "All immune cells' expression", col = "red", pch = 21, 
+#        xlim=c(min(c(x1, x2)) - 1 , max(c(x1, x2)) + 1),
+#        ylim = c(min(c(y1, y2)) - 1 , max(c(y1, y2)) + 1))
+#   points(x = x2, y = y2, col = "blue", pch = 21)
+#   abline(model)
+#   #text(x = min(c(x1, x2)), y = max(c(y1, y2)), labels = paste("R = ", signif(sqrt(summary(model)$r.squared), digits = 4)))
+#   
+#   #Add a perpendicular line to the fitted line above, passing through the Median x and Median y, and print the ratio of Yes/No samples on each side of this perpendicular line.
+#   combinedPoints = cbind(reducedGeneSignature, medianCellSignature) 
+#   medianPoint = apply(combinedPoints, 2, median)
+#   slopeOfPerpendicular = (-1/coef(model)[[2]])
+#   yIntercept = medianPoint[2] - medianPoint[1]*slopeOfPerpendicular
+#   abline(a = yIntercept, b = slopeOfPerpendicular , col = "grey", lty = "dashed")
+#   directionOfPoints = apply(combinedPoints, 1, function (x) directionOfPointFromALine(x, yIntercept = yIntercept, slope = slopeOfPerpendicular))
+#   ratios = ratioOfEventMetSamplesOnEachSideOfTheLine(directionOfPoints, metastasesSamples)
+#   #text(x = min(c(x1, x2)), y = min(c(y1, y2)), labels = paste("Yes/No = ", signif(ratios[[1]], digits = 4)), col = "grey")
+#   #text(x = max(c(x1, x2)), y = min(c(y1, y2)), labels = paste("Yes/No = ", signif(ratios[[2]], digits = 4)), col = "grey")
+#   
+#   legend(x = "topright",legend = unique(colData(vsd)$EventMet),col=c("red", "blue"), pch=21, title = "Metastases")
+#   dev.off()
+#   
+#   res = data.frame("Score" = signif(sqrt(summary(model)$r.squared), digits = 4))
+#   res$CellType = "ImmuneCells"
+#   res$RatioYesVsNoLeft = ratios[[1]]
+#   res$RatioYesVsNoRight = ratios[[2]]
+#   #res$PearsonCoeff = corr.test(x = , y = )
+# 
+#   dfCoeff = rbind(res, dfCoeff)
 ```
 
 ```{r}
-dfCoeff = dfCoeff[order(dfCoeff$Score, decreasing = TRUE),]
-
-write.table(dfCoeff, "./AngelovaCorrelationScoresFromLMCam_121.tsv", sep = "\t", quote = FALSE, col.names = TRUE, row.names = FALSE)
+# dfCoeff = dfCoeff[order(dfCoeff$Score, decreasing = TRUE),]
+# 
+# write.table(dfCoeff, "./AngelovaCorrelationScoresFromLMCam_121.tsv", sep = "\t", quote = FALSE, col.names = TRUE, row.names = FALSE)
 ```
 
 plot using ggplot2
