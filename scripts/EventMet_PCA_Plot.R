@@ -16,7 +16,9 @@ plotPCARiskGroup = function(geneExpressionDf, plotScreePlot, plotType){
       dataGG = data.frame(xPComponent = PCA$x[,xComponent], yPComponent = PCA$x[,yComponent], 
                           Tissue_Code = clinicalData$Tissue_Code,
                           Metastases = clinicalData$EventMet)
-      write.xlsx(dataGG, "~/Desktop/Melanoma/githubUpload/Source_Data/Fig_S2.xlsx", colNames = TRUE, rowNames = TRUE, append = TRUE)
+      if ((xComponent == 1) & (yComponent == 2)) {
+        write.xlsx(dataGG, "~/Desktop/Melanoma/githubUpload/Source_Data/Fig_S2.xlsx", colNames = TRUE, rowNames = TRUE, append = TRUE)
+      }
       
       plot1 = ggplot(dataGG, aes(x = xPComponent, y = yPComponent, 
                                  shape = clinicalData$Tissue_Code, 
@@ -52,4 +54,3 @@ Pvars <- rowVars(as.matrix(m))
 select <- order(Pvars, decreasing = TRUE)[seq_len(min(nTop, length(Pvars)))]
 matSelected <- expressionData[select, ]
 plotPCARiskGroup(t(matSelected), plotScreePlot = TRUE, plotType = "Top1000MostVariableGenes")
-
