@@ -1,0 +1,656 @@
+---
+title: "TcellAnalysis"
+author: "Manik Garg"
+date: "29/10/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library("ggplot2")
+theme_set(ggpubr::theme_pubr(base_size=10, legend='bottom'))
+```
+
+```{r}
+pathTogeneToGroupMappings = "./EventMet_Survival_Genes_ML_Individual_Published_Jeremie_WithoutLn_WithTopGenesByLfc.txt"
+group = "Signature_overlap_DASLarray_genes"
+#group = "SignatureGenes_SentToJeremie_121"
+pathToTheDESeq2Results = "./tcSkinEventMetNo_VS_tcSkinEventMetYes_CovariateCorrection.deseq2/de.Rdata"
+pathToAngelovaGeneList = "../../Downloads/Angelova_2015_SignatureFile.csv"
+#pathToImmuneScoreResults = "../../Downloads/Melanoma_estimate_score_t_CIBERSORTx_ClinicalData_Sig121_HighLow.txt"
+```
+
+```{r}
+suppressPackageStartupMessages(library("DESeq2"))
+load(pathToTheDESeq2Results)
+```
+
+```{r}
+geneToGroupMappings = read.table(pathTogeneToGroupMappings, sep = "\t", header = TRUE, quote = "")
+select = rownames(res.annot)[ which(res.annot$Name %in% geneToGroupMappings$Gene[geneToGroupMappings[[group]] == 1])]  
+expressionData = data.frame(assay(vsd)[select, ])
+#Replace ENSEMBL IDs with corresponding gene names
+rownames(expressionData) = res.annot$Name[which(rownames(res.annot) %in% select)]
+```
+
+<!-- ## 15 Tcell genes -->
+
+<!-- ```{r} -->
+<!-- allJeremieGenes = read.table(pathToTcellGenes, sep = "\t", header = TRUE, quote = "") -->
+<!-- select = rownames(res.annot)[which(res.annot$Name %in% allJeremieGenes$Gene[allJeremieGenes$CellType == "T-cells"])]   -->
+<!-- expressionDataForTcells = data.frame(assay(vsd)[select, ]) -->
+<!-- #Replace ENSEMBL IDs with corresponding gene names -->
+<!-- rownames(expressionDataForTcells) = res.annot$Name[which(rownames(res.annot) %in% select)] -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- medianTcellSignature = apply(expressionDataForTcells, 2, median) -->
+<!-- reducedGeneSignature = apply(expressionData, 2, median) -->
+
+<!-- correlationCoeff = cor(medianTcellSignature, reducedGeneSignature, use = "pairwise.complete.obs", method = "spearman") -->
+
+<!-- model = lm(medianTcellSignature ~ reducedGeneSignature) -->
+
+<!-- plot(x = reducedGeneSignature, y = medianTcellSignature, xlab = "Cam_121 gene signature", ylab = "T-cell Signature") -->
+<!-- abline(model) -->
+<!-- sqrt(summary(model)$r.squared) -->
+
+<!-- # Histogram of residuals looks approximately normal -->
+<!-- hist(residuals(model), col="darkgray") -->
+<!-- plot(model) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- suppressPackageStartupMessages(library(robustbase)) -->
+<!-- model = lmrob(medianTcellSignature ~ reducedGeneSignature) -->
+
+<!-- pdf("TcellScoreVsCam121GeneSignatureWeighted.pdf") -->
+<!-- plot(x = reducedGeneSignature, y = medianTcellSignature, xlab = "Cam_121 gene signature", ylab = "T-cell Signature") -->
+<!-- abline(model) -->
+<!-- text(x = max(reducedGeneSignature) - 1, y = max(medianTcellSignature), labels = paste("R = ", signif(sqrt(summary(model)$r.squared), digits = 4))) -->
+<!-- dev.off() -->
+
+<!-- # Histogram of residuals looks approximately normal -->
+<!-- hist(residuals(model), col="darkgray") -->
+<!-- plot(model) -->
+<!-- ``` -->
+
+```{r}
+betaCoeff = read.table("~/Downloads/betaCoeff.tsv", sep = "\t", header = TRUE, quote = "")
+#Make sure that the clinical data is in the same order as samples in the expression data
+seIdx = match(rownames(res.annot), rownames(betaCoeff))
+betaCoeff = betaCoeff[seIdx, ]
+betaCoeff$Name = res.annot$Name
+betaCoeffSubset = betaCoeff[which(betaCoeff$Name %in% rownames(expressionData)), ]
+seIdx = match(rownames(expressionData), betaCoeffSubset$Name)
+betaCoeffSubset = betaCoeffSubset[seIdx, ]
+reducedSignature = apply(expressionData*betaCoeffSubset$EventMet_Yes_vs_No, 2, sum)
+stand.fun = function(x){(x-mean(x,na.rm=TRUE))/sd(x,na.rm=TRUE)}
+reducedGeneSignature = stand.fun(reducedSignature) 
+reducedGeneSignatureGroup = ifelse(reducedGeneSignature >= as.numeric(quantile(reducedGeneSignature,0.33)), "High", "Low")
+#reducedGeneSignature = apply(expressionData, 2, median)
+#RiskGroup = ifelse(reducedGeneSignature > median(reducedGeneSignature), "High", "Low")
+#Cam_121_Expression = ifelse(reducedGeneSignature > median(reducedGeneSignature), "High", "Low")
+```
+
+## All cell types in Angelova
+
+```{r}
+allJeremieGenes = read.table(pathToAngelovaGeneList, sep = ",", header = TRUE, quote = "")
+allJeremieGenes = allJeremieGenes[!(allJeremieGenes$CellType %in% c("MDSC", "NK56_bright")), ]
+```
+
+## Plot PCA of samples using genes in each celltype and see how well they distribute the high low groups
+```{r}
+plotPCARiskGroup = function(geneExpressionDf, plotScreePlot, cellType){
+  PCA = prcomp(geneExpressionDf[, 3:ncol(geneExpressionDf)])
+  percentVar = round(100*PCA$sdev^2/sum(PCA$sdev^2),1)
+  for (xComponent in 1:3){
+    for (yComponent in (xComponent+1):4){
+      dataGG = data.frame(xPComponent = PCA$x[,xComponent], yPComponent = PCA$x[,yComponent], 
+                          Cam_121 = geneExpressionDfForAllCellTypes$Cam_121,
+                          Immune_Cells = geneExpressionDfForAllCellTypes$Immune_Cells)
+      plot1 = qplot(xPComponent, yPComponent, data = dataGG, color =  Cam_121,
+                    size = Immune_Cells, alpha = I(0.6)) +
+        #geom_point(size = c(3,5))+
+        labs(x = paste0("PC",xComponent," (", round(percentVar[xComponent],4),"%)"),
+             y = paste0("PC",yComponent," (", round(percentVar[yComponent],4),"%)")) + 
+        scale_color_manual(values = c("red", "blue"), name = "Weighted_Score") +
+        #scale_shape(name="Immune_Cells") +
+        theme_bw() #+ coord_fixed()
+      
+      ggsave(filename = paste("./AngelovaPcaAnalysis/RiskGroupPc", xComponent, "Vs", yComponent, "PlotFor", cellType, ".pdf", sep = ""), height=5, width=5, units='in')
+      #dev.off()
+    }
+    }
+  if(plotScreePlot & !file.exists(paste("./AngelovaPcaAnalysis/RiskGroupScreeplotPlotFor", cellType, ".pdf", sep = ""))){
+    pdf(file=paste("./AngelovaPcaAnalysis/RiskGroupScreeplotPlotFor", cellType, ".pdf", sep = ""))
+    plot2 = screeplot(PCA, type = 'lines')
+    dev.off()
+    #Return both the plots as a list
+    #Courtsey: https://stackoverflow.com/questions/35849703/returning-two-graphs-using-a-single-function-in-r
+    return(list(plot1, plot2))
+  }
+  else{
+    return(list(plot1))
+  }
+}
+```
+
+## Plot PCA for all cell-types
+```{r}
+library("ggplot2")
+#library("viridis")
+
+select = rownames(res.annot)[which(res.annot$Name %in% allJeremieGenes$Gene)] 
+expressionDataForCellType = data.frame(assay(vsd)[select, ])
+
+#Calculate high-low immune cell expression groups for each cell-type
+medianCellTypeExpression = apply(t(expressionDataForCellType), 1, median)
+cellTypeExpressionGroup = ifelse(medianCellTypeExpression >= median(medianCellTypeExpression), "High", "Low")
+
+#Prepare data frame to apply PCA
+geneExpressionDfForAllCellTypes = data.frame("Cam_121" = reducedGeneSignatureGroup, "Immune_Cells" = cellTypeExpressionGroup)
+geneExpressionDfForAllCellTypes = cbind(geneExpressionDfForAllCellTypes, t(expressionDataForCellType))
+
+#Plot PCA
+plotPCARiskGroup(geneExpressionDfForAllCellTypes, plotScreePlot = TRUE, cellType = "All")
+
+
+for (cellType in unique(allJeremieGenes$CellType)){
+  select = rownames(res.annot)[which(res.annot$Name %in% allJeremieGenes$Gene[allJeremieGenes$CellType == cellType])]
+  expressionDataForCellType = data.frame(assay(vsd)[select, ])
+  
+  #Calculate high-low immune cell expression groups for each cell-type
+  medianCellTypeExpression = apply(t(expressionDataForCellType), 1, median)
+  cellTypeExpressionGroup = ifelse(medianCellTypeExpression >= median(medianCellTypeExpression), "High", "Low")
+  
+  #Prepare data frame to apply PCA
+  geneExpressionDf = data.frame("Cam_121" = reducedGeneSignatureGroup, "Immune_Cells" = cellTypeExpressionGroup)
+  geneExpressionDf = cbind(geneExpressionDf, t(expressionDataForCellType))
+  
+  #Plot PCA
+  plotPCARiskGroup(geneExpressionDf, plotScreePlot = TRUE, cellType = cellType)
+}
+```
+
+## Perform correlation analysis
+
+```{r}
+directionOfPointFromALine = function(pointOfInterest, yIntercept, slope){
+  yOnTheLine = pointOfInterest[1]*slope + yIntercept 
+  if(slope < 0){
+   directionOfPoint = ifelse(pointOfInterest[2] > yOnTheLine, "right", "left") 
+  }
+  else{
+    directionOfPoint = ifelse(pointOfInterest[2] > yOnTheLine, "left", "right") 
+  }
+  return(directionOfPoint)
+}
+
+ratioOfEventMetSamplesOnEachSideOfTheLine = function(directionOfPoints, eventMet){
+  leftYes = intersect(names(directionOfPoints[directionOfPoints == "left"]) , rownames(eventMet[eventMet$EventMet == "Yes", ]))
+  leftNo = intersect(names(directionOfPoints[directionOfPoints == "left"]) , rownames(eventMet[eventMet$EventMet == "No", ]))
+  rightYes = intersect(names(directionOfPoints[directionOfPoints == "right"]) , rownames(eventMet[eventMet$EventMet == "Yes", ]))
+  rightNo = intersect(names(directionOfPoints[directionOfPoints == "right"]) , rownames(eventMet[eventMet$EventMet == "No", ]))
+  
+  ratioLeft = (length(leftYes)/length(rownames(eventMet[eventMet$EventMet == "Yes", ])))/(length(leftNo)/length(rownames(eventMet[eventMet$EventMet == "No", ])))
+
+  ratioRight = (length(rightYes)/length(rownames(eventMet[eventMet$EventMet == "Yes", ])))/(length(rightNo)/length(rownames(eventMet[eventMet$EventMet == "No", ])))
+  
+  return(list(ratioLeft, ratioRight))
+}
+
+```
+
+
+```{r}
+#commonGenesWithOurSignature = intersect(allJeremieGenes$Gene, rownames(expressionData))
+#library("robustbase")
+dfCoeff = data.frame()
+#geneExpressionDf = t(data.frame(RiskGroup))
+suppressPackageStartupMessages(library(robustbase))
+metastasesSamples = colData(vsd)[, c("RNA.Seq.Sample", "EventMet")]
+
+# for (cellType in unique(allJeremieGenes$CellType)){
+#   select = rownames(res.annot)[which(res.annot$Name %in% allJeremieGenes$Gene[allJeremieGenes$CellType == cellType])]  
+#   expressionDataForCellType = data.frame(assay(vsd)[select, ])
+#   #rownames(expressionDataForCellType) = res.annot$Name[which(rownames(res.annot) %in% select)]
+#   #print(rownames(expressionDataForCellType))
+#   #Replace ENSEMBL IDs with corresponding gene names
+#   medianCellSignature = apply(expressionDataForCellType, 2, median)
+#   
+#   model = lmrob(medianCellSignature ~ reducedGeneSignature)
+#   
+#   #Extract values corresponding to EventMet = "Yes"
+#   x1 = reducedGeneSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "Yes", ]))]
+#   y1 = medianCellSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "Yes", ]))]
+#   
+#   #Extract values corresponding to EventMet = "No"
+#   x2 = reducedGeneSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "No", ]))]
+#   y2 = medianCellSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "No", ]))]
+# 
+#   pdf(paste("Angelova", cellType, "Vs", group, ".pdf", sep = ""))
+#   plot(x = x1, y = y1, xlab = "Weighted Cam_121 score (standardized)", ylab = paste("Median", cellType, "expression", sep = " "), col = "red", xlim=c(min(c(x1, x2)) - 1 , max(c(x1, x2)) + 1), 
+#        ylim = c(min(c(y1, y2)) - 1 , max(c(y1, y2)) + 1))
+#   points(x = x2, y = y2, col = "blue")
+#   abline(model)
+#   #text(x = min(c(x1, x2)), y = max(c(y1, y2)), labels = paste("R = ", signif(sqrt(summary(model)$r.squared), digits = 4)))
+#   
+#   #Add a perpendicular line to the fitted line above, passing through the Median x and Median y, and print the ratio of Yes/No samples on each side of this perpendicular line.
+#   combinedPoints = cbind(reducedGeneSignature, medianCellSignature) 
+#   medianPoint = apply(combinedPoints, 2, median)
+#   slopeOfPerpendicular = (-1/coef(model)[[2]])
+#   yIntercept = medianPoint[2] - medianPoint[1]*slopeOfPerpendicular
+#   abline(a = yIntercept, b = slopeOfPerpendicular , col = "grey", lty = "dashed")
+#   directionOfPoints = apply(combinedPoints, 1, function (x) directionOfPointFromALine(x, yIntercept = yIntercept, slope = slopeOfPerpendicular))
+#   ratios = ratioOfEventMetSamplesOnEachSideOfTheLine(directionOfPoints, metastasesSamples)
+#   #text(x = min(c(x1, x2)), y = min(c(y1, y2)), labels = paste("Yes/No = ", signif(ratios[[1]], digits = 4)), col = "grey")
+#   #text(x = max(c(x1, x2)), y = min(c(y1, y2)), labels = paste("Yes/No = ", signif(ratios[[2]], digits = 4)), col = "grey")
+#   
+#   legend(x = "topright",legend = unique(colData(vsd)$EventMet),col=c("red", "blue"),pch=1,title = "Metastases")
+#   dev.off()
+# 
+#   res = data.frame("Score" = signif(sqrt(summary(model)$r.squared), digits = 4))
+#   res$CellType = cellType
+#   res$RatioYesVsNoLeft = ratios[[1]]
+#   res$RatioYesVsNoRight = ratios[[2]]
+# 
+#   dfCoeff = rbind(res, dfCoeff)
+#   # Histogram of residuals looks approximately normal
+#   #hist(residuals(model), col="darkgray")
+#   #plot(model)
+#   
+#  # medianCellSignature = t(data.frame(medianCellSignature))
+#  # rownames(medianCellSignature) = cellType
+#  # geneExpressionDf = rbind(geneExpressionDf, medianCellSignature)
+# }
+```
+
+## Repeat the analysis for all celltypes together to get the Immune score for Angelova
+```{r}
+# library(robustbase)
+# select = rownames(res.annot)[which(res.annot$Name %in% allJeremieGenes$Gene)] 
+# expressionDataForCellType = data.frame(assay(vsd)[select, ])
+# medianCellSignature = apply(expressionDataForCellType, 2, median)
+# model = lmrob(medianCellSignature ~ reducedGeneSignature)
+#   
+#   #Extract values corresponding to EventMet = "Yes"
+#   x1 = reducedGeneSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "Yes", ]))]
+#   y1 = medianCellSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "Yes", ]))]
+#   
+#   #Extract values corresponding to EventMet = "No"
+#   x2 = reducedGeneSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "No", ]))]
+#   y2 = medianCellSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "No", ]))]
+# 
+#   pdf(paste("AngelovaAll", "Vs", group, ".pdf", sep = ""))
+#   plot(x = x1, y = y1, xlab = "Weighted Cam_121 score (standardized)", ylab = "All immune cells' expression", col = "red", pch = 21, 
+#        xlim=c(min(c(x1, x2)) - 1 , max(c(x1, x2)) + 1),
+#        ylim = c(min(c(y1, y2)) - 1 , max(c(y1, y2)) + 1))
+#   points(x = x2, y = y2, col = "blue", pch = 21)
+#   abline(model)
+#   #text(x = min(c(x1, x2)), y = max(c(y1, y2)), labels = paste("R = ", signif(sqrt(summary(model)$r.squared), digits = 4)))
+#   
+#   #Add a perpendicular line to the fitted line above, passing through the Median x and Median y, and print the ratio of Yes/No samples on each side of this perpendicular line.
+#   combinedPoints = cbind(reducedGeneSignature, medianCellSignature) 
+#   medianPoint = apply(combinedPoints, 2, median)
+#   slopeOfPerpendicular = (-1/coef(model)[[2]])
+#   yIntercept = medianPoint[2] - medianPoint[1]*slopeOfPerpendicular
+#   abline(a = yIntercept, b = slopeOfPerpendicular , col = "grey", lty = "dashed")
+#   directionOfPoints = apply(combinedPoints, 1, function (x) directionOfPointFromALine(x, yIntercept = yIntercept, slope = slopeOfPerpendicular))
+#   ratios = ratioOfEventMetSamplesOnEachSideOfTheLine(directionOfPoints, metastasesSamples)
+#   #text(x = min(c(x1, x2)), y = min(c(y1, y2)), labels = paste("Yes/No = ", signif(ratios[[1]], digits = 4)), col = "grey")
+#   #text(x = max(c(x1, x2)), y = min(c(y1, y2)), labels = paste("Yes/No = ", signif(ratios[[2]], digits = 4)), col = "grey")
+#   
+#   legend(x = "topright",legend = unique(colData(vsd)$EventMet),col=c("red", "blue"), pch=21, title = "Metastases")
+#   dev.off()
+#   
+#   res = data.frame("Score" = signif(sqrt(summary(model)$r.squared), digits = 4))
+#   res$CellType = "ImmuneCells"
+#   res$RatioYesVsNoLeft = ratios[[1]]
+#   res$RatioYesVsNoRight = ratios[[2]]
+#   #res$PearsonCoeff = corr.test(x = , y = )
+# 
+#   dfCoeff = rbind(res, dfCoeff)
+```
+
+```{r}
+# dfCoeff = dfCoeff[order(dfCoeff$Score, decreasing = TRUE),]
+# 
+# write.table(dfCoeff, "./AngelovaCorrelationScoresFromLMCam_121.tsv", sep = "\t", quote = FALSE, col.names = TRUE, row.names = FALSE)
+```
+
+plot using ggplot2
+
+```{r}
+library(RColorBrewer)
+library(robustbase)
+select = rownames(res.annot)[which(res.annot$Name %in% allJeremieGenes$Gene)] 
+expressionDataForCellType = data.frame(assay(vsd)[select, ])
+medianCellSignature = apply(expressionDataForCellType, 2, median)
+#model = lmrob(medianCellSignature ~ reducedGeneSignature)
+  
+  #Extract values corresponding to EventMet = "Yes"
+  df = data.frame("Cam_121" = c(reducedGeneSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "Yes", ]))], reducedGeneSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "No", ]))]),
+                  "ImmuneCell" = c(medianCellSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "Yes", ]))], medianCellSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "No", ]))]),
+                  "EventMet" = c(rep("Yes", length(reducedGeneSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "Yes", ]))])), rep("No", length(reducedGeneSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "No", ]))]))))
+  
+g1<- ggplot(df, aes(x=Cam_121, y=ImmuneCell, color=EventMet))+
+     geom_point(alpha = 0.5)+
+     xlab("Weighted Cam_121 score (standardized)")+
+     ylab("All immune cell-types")+
+     scale_color_manual(values = c("#1F78B4", "#E31A1C"), name = "Distant\nmetastases")+
+     geom_smooth(method = "lm", alpha = .15, aes(fill = EventMet))+
+     scale_fill_manual(values = c("#1F78B4", "#E31A1C"), name = "Distant\nmetastases")+
+     ggpubr::stat_cor(aes(color = EventMet), label.x = -0.75, label.y =c(max(df$ImmuneCell)+0.45,                                                                      max(df$ImmuneCell)+0.1))+
+  ylim(c(min(df$ImmuneCell), max(df$ImmuneCell)+0.5))+
+  coord_fixed()
+ggsave(paste0("All Immune cell-types", "CorrelationPlot.png", sep = ""), device = "png", units = "cm", width = 8)
+
+colorscale = scale_fill_gradientn(
+    colors = rev(brewer.pal(9, "YlGnBu")),
+    values = c(0, exp(seq(-5, 0, length.out = 50))),
+    name = "Level")
+
+g2<- ggplot(df, aes(x=Cam_121, y=ImmuneCell, color=EventMet))+
+  #geom_point()+
+  xlab("Weighted Cam_121 score (standardized)")+
+  ylab("All immune cell-types")+
+  scale_color_manual(values = c("#1F78B4", "#E31A1C"), name = "Distant\nmetastases")+
+  geom_density_2d(alpha = 0.75) +
+  coord_fixed()
+g2
+
+ggsave(paste0("All", "DensityPlot.png", sep = ""), device = "png", units = "cm", width = 8)
+```
+
+```{r}
+df$ImmuneCellGroup = ifelse(medianCellSignature >= median(medianCellSignature), "High", "Low")
+df$Cam_121Group = reducedGeneSignatureGroup
+pcaResults <- prcomp(t(expressionDataForCellType))
+df$PC1 <- pcaResults[["x"]][,1]
+df$PC2 <- pcaResults[["x"]][,2]
+g7<-ggplot(df, aes(x=PC1, y=PC2, color=Cam_121Group, shape = ImmuneCellGroup))+
+  geom_point(alpha = 0.5)+
+  scale_color_manual(values = c("#E31A1C", "#1F78B4"), name = "Weighted\nCam_121\nscore")+
+  scale_shape(name="Immune\ncell\nexpression")+
+  coord_fixed()+theme(legend.position = "right")
+ggsave("AllPCA.png", device = "png", units = "cm", width = 8)
+```
+
+```{r}
+library(RColorBrewer)
+library(robustbase)
+cellType = "Activated_B_cells"
+select = rownames(res.annot)[which(res.annot$Name %in% allJeremieGenes$Gene[allJeremieGenes$CellType == cellType])] 
+expressionDataForCellType = data.frame(assay(vsd)[select, ])
+medianCellSignature = apply(expressionDataForCellType, 2, median)
+#model = lmrob(medianCellSignature ~ reducedGeneSignature)
+  
+  #Extract values corresponding to EventMet = "Yes"
+  df = data.frame("Cam_121" = c(reducedGeneSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "Yes", ]))], reducedGeneSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "No", ]))]),
+                  "ImmuneCell" = c(medianCellSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "Yes", ]))], medianCellSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "No", ]))]),
+                  "EventMet" = c(rep("Yes", length(reducedGeneSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "Yes", ]))])), rep("No", length(reducedGeneSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "No", ]))]))))
+  
+g3<- ggplot(df, aes(x=Cam_121, y=ImmuneCell, color=EventMet))+
+  geom_point(alpha = 0.5)+
+  xlab("Weighted Cam_121 score (standardized)")+
+  ylab("Activated B-cells")+
+  scale_color_manual(values = c("#1F78B4", "#E31A1C"), name = "Distant\nmetastases")+
+  geom_smooth(method = "lm", alpha = .15, aes(fill = EventMet))+
+  scale_fill_manual(values = c("#1F78B4", "#E31A1C"), name = "Distant\nmetastases")+
+  ggpubr::stat_cor(aes(color = EventMet), label.x = -0.75, label.y = c(max(df$ImmuneCell)+0.45,
+                                                                      max(df$ImmuneCell)+0.1))+
+  ylim(c(min(df$ImmuneCell), max(df$ImmuneCell)+0.5))+
+  coord_fixed()
+ggsave(paste0(cellType, "CorrelationPlot.png", sep = ""), device = "png", units = "cm", width = 8)
+
+g4<- ggplot(df, aes(x=Cam_121, y=ImmuneCell, color=EventMet))+
+  #geom_point()+
+  xlab("Weighted Cam_121 score (standardized)")+
+  ylab("Activated B-cells")+
+  scale_color_manual(values = c("#1F78B4", "#E31A1C"), name = "Distant\nmetastases")+
+  geom_density_2d(alpha = 0.75) +
+  coord_fixed()
+
+ggsave(paste0(cellType, "DensityPlot.png", sep = ""), device = "png", units = "cm", width = 8)
+```
+```{r}
+library(RColorBrewer)
+library(robustbase)
+cellType = "T_cells"
+select = rownames(res.annot)[which(res.annot$Name %in% allJeremieGenes$Gene[allJeremieGenes$CellType == cellType])] 
+expressionDataForCellType = data.frame(assay(vsd)[select, ])
+medianCellSignature = apply(expressionDataForCellType, 2, median)
+#model = lmrob(medianCellSignature ~ reducedGeneSignature)
+  
+  #Extract values corresponding to EventMet = "Yes"
+  df = data.frame("Cam_121" = c(reducedGeneSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "Yes", ]))], reducedGeneSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "No", ]))]),
+                  "ImmuneCell" = c(medianCellSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "Yes", ]))], medianCellSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "No", ]))]),
+                  "EventMet" = c(rep("Yes", length(reducedGeneSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "Yes", ]))])), rep("No", length(reducedGeneSignature[names(reducedGeneSignature) %in% rownames(data.frame(colData(vsd)[colData(vsd)$EventMet == "No", ]))]))))
+  
+g5<- ggplot(df, aes(x=Cam_121, y=ImmuneCell, color=EventMet))+
+  geom_point(alpha = 0.5)+
+  xlab("Weighted Cam_121 score (standardized)")+
+  ylab("T-cells")+
+  scale_color_manual(values = c("#1F78B4", "#E31A1C"), name = "Distant\nmetastases")+
+  geom_smooth(method = "lm", alpha = .15, aes(fill = EventMet))+
+  scale_fill_manual(values = c("#1F78B4", "#E31A1C"), name = "Distant\nmetastases")+
+  ggpubr::stat_cor(aes(color = EventMet), label.x = -0.75, label.y = c(max(df$ImmuneCell)+0.45,
+                                                                      max(df$ImmuneCell)+0.1))+
+  ylim(c(min(df$ImmuneCell), max(df$ImmuneCell)+0.5))+
+  coord_fixed()
+ggsave(paste0(cellType, "CorrelationPlot.png", sep = ""), device = "png", units = "cm", width = 8)
+
+g6<- ggplot(df, aes(x=Cam_121, y=ImmuneCell, color=EventMet))+
+  #geom_point()+
+  xlab("Weighted Cam_121 score (standardized)")+
+  ylab("T-cells")+
+  scale_color_manual(values = c("#1F78B4", "#E31A1C"), name = "Distant\nmetastases")+
+  geom_density_2d(alpha = 0.75) +
+  coord_fixed()
+ggsave(paste0(cellType, "DensityPlot.png", sep = ""), device = "png", units = "cm", width = 8)
+```
+
+```{r}
+ggpubr::ggarrange(g5,g6, g3, g4, g1, g2,g7, ncol = 2, nrow = 4, align = "h")
+ggsave("ImmuneCellCorrelationPlot", device = "png", units = "cm", width = 16)
+```
+
+<!-- ## Goal is to find the ratio of Metastases Yes Vs No in each half of the plot -->
+
+<!-- ```{r} -->
+<!-- MedianY =  median(medianCellSignature) -->
+<!-- MedianX =  median(reducedGeneSignature) -->
+
+<!-- samplesBelowOverallMedian = intersect(names(medianCellSignature)[medianCellSignature < MedianY], names(reducedGeneSignature)[reducedGeneSignature < MedianX]) -->
+<!-- ratioOfMetastasesInSamplesBelowMedian = c(samplesBelowMedianX, samplesBelowMedianY) -->
+
+<!-- samplesAboveOverallMedian = intersect(names(medianCellSignature)[medianCellSignature > MedianY], names(reducedGeneSignature)[reducedGeneSignature > MedianX]) -->
+
+
+<!-- ``` -->
+
+
+<!-- ## Angelova hot-cold heatmaps -->
+
+<!-- ```{r} -->
+<!-- cellTypeHigh = data.frame("Score" = as.numeric(apply(geneExpressionDf[2:nrow(geneExpressionDf), RiskGroup == "High"], 1, median))) -->
+<!-- rownames(cellTypeHigh) = rownames(geneExpressionDf)[2:nrow(geneExpressionDf)] -->
+<!-- cellTypeHigh$Group = "High" -->
+<!-- cellTypeHigh$CellType = rownames(cellTypeHigh) -->
+
+<!-- cellTypeLow = data.frame("Score" = as.numeric(apply(geneExpressionDf[2:nrow(geneExpressionDf), RiskGroup == "Low"], 1, median))) -->
+<!-- rownames(cellTypeLow) = rownames(geneExpressionDf)[2:nrow(geneExpressionDf)] -->
+<!-- cellTypeLow$Group = "Low" -->
+<!-- cellTypeLow$CellType = rownames(cellTypeLow) -->
+
+<!-- df = data.frame(rbind(cellTypeHigh, cellTypeLow)) -->
+<!-- df$Score = scale(df$Score, center = TRUE, scale = TRUE)  -->
+<!-- dfCombined = merge(df, dfCoeff, by = "CellType") -->
+<!-- suppressPackageStartupMessages(library(ggplot2)) -->
+<!-- #suppressPackageStartupMessages(library(viridis)) -->
+<!-- p <- ggplot(dfCombined, aes(x = Group, y = CellType)) + geom_tile(aes(fill = Score.x)) +  -->
+<!--   scale_fill_gradient2(low = "firebrick3", high = "navyblue", mid = "white", midpoint = 0) +  -->
+<!--   theme_bw() -->
+<!-- #ggsave(filename = "AngelovaOneHotScoreWeighted.pdf", device = "pdf") -->
+<!-- #dev.off() -->
+
+<!-- p -->
+
+<!-- df = data.frame(rbind(cellTypeHigh, cellTypeLow)) -->
+<!-- dfCombined = merge(df, dfCoeff, by = "CellType") -->
+<!-- dfCombined = dfCombined[dfCombined$CellType %in% top10CorrelatedGenes, ] -->
+<!-- dfCombined$Score.x = scale(dfCombined$Score.x, center = TRUE, scale = TRUE)  -->
+<!-- p <- ggplot(dfCombined, aes(x = Group, y = CellType)) + geom_tile(aes(fill = Score.x)) +  -->
+<!--   scale_fill_gradient2(low = "navyblue", high = "firebrick3", mid = "white", midpoint = 0) +  -->
+<!--   theme_bw() +  -->
+<!--   xlab("Risk Group")+ -->
+<!--   ylab("Cell Type") -->
+<!-- ggsave(filename = "AngelovaOneHotScoreForTop12GenesWeighted.pdf", device = "pdf") -->
+<!-- dev.off() -->
+
+<!-- p -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- geneExpressionDfNew = t(data.frame(apply(geneExpressionDf[2:nrow(geneExpressionDf), ], 1, as.numeric))) -->
+<!-- colnames(geneExpressionDfNew) = colnames(geneExpressionDf) -->
+<!-- #geneExpressionDfNew = rbind(geneExpressionDf[1, ], geneExpressionDfNew) -->
+<!-- plot1 = pheatmap(geneExpressionDfNew,  -->
+<!--              cluster_rows=TRUE, clustering_distance_rows = 'euclidean',  -->
+<!--              cluster_cols=TRUE, clustering_distance_cols = 'euclidean',  -->
+<!--              clustering_method = 'complete', -->
+<!--              border_color = "white", -->
+<!--              #scale = "row", -->
+<!--              color = colorRampPalette(c("firebrick3", "white", "navy"))(100), -->
+<!--              annotation_col = data.frame(RiskGroup), -->
+<!--              show_rownames=T, show_colnames = F) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- library("pheatmap") -->
+<!-- top10CorrelatedGenes = dfCoeff$CellType[dfCoeff$Score > 0.5] -->
+<!-- geneExpressionDfNew = t(data.frame(apply(geneExpressionDf[2:nrow(geneExpressionDf), ], 1, as.numeric))) -->
+<!-- colnames(geneExpressionDfNew) = colnames(geneExpressionDf) -->
+
+<!-- mycolors <- c("navy", "firebrick3") -->
+<!-- names(mycolors) <- c("Low", "High") -->
+
+<!-- #geneExpressionDfNew = rbind(geneExpressionDf[1, ], geneExpressionDfNew) -->
+<!-- plot1 = pheatmap(geneExpressionDfNew[top10CorrelatedGenes, ],  -->
+<!--              cluster_rows=TRUE, clustering_distance_rows = 'euclidean',  -->
+<!--              cluster_cols=TRUE, clustering_distance_cols = 'euclidean',  -->
+<!--              clustering_method = 'complete', -->
+<!--              border_color = "white", -->
+<!--              scale = "row", -->
+<!--              color = colorRampPalette(c("navy", "white", "firebrick3"))(100), -->
+<!--              annotation_col = data.frame(RiskGroup), -->
+<!--              annotation_colors = list(RiskGroup = mycolors), -->
+<!--              show_rownames=T, show_colnames = F, cellheight = 12,  -->
+<!--              filename = "AngelovaUnsupervisedHeatmapWithTop12GenesWeighted.pdf") -->
+<!-- ``` -->
+
+<!-- ## Effector Tcell genes -->
+
+<!-- ```{r} -->
+<!-- select = rownames(res.annot)[which(res.annot$Name %in% c("GZMA", "PRF1"))] -->
+<!-- expressionDataForEffectorTcells = data.frame(assay(vsd)[select, ]) -->
+<!-- #Replace ENSEMBL IDs with corresponding gene names -->
+<!-- rownames(expressionDataForEffectorTcells) = res.annot$Name[which(rownames(res.annot) %in% select)] -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- suppressPackageStartupMessages(library("EnvStats")) -->
+<!-- geoMeanOfEffectorTcellSignature = apply(expressionDataForEffectorTcells, 2, geoMean) -->
+
+<!-- correlationCoeff = cor(geoMeanOfEffectorTcellSignature, reducedGeneSignature, use = "pairwise.complete.obs", method = "spearman") -->
+
+<!-- model = lm(geoMeanOfEffectorTcellSignature ~ reducedGeneSignature) -->
+
+<!-- plot(x = reducedGeneSignature, y = geoMeanOfEffectorTcellSignature, xlab = "Cam_121 gene signature", ylab = "Effector T-cell Signature") -->
+<!-- abline(model) -->
+<!-- sqrt(summary(model)$r.squared) -->
+
+<!-- # Histogram of residuals looks approximately normal -->
+<!-- hist(residuals(model), col="darkgray") -->
+<!-- plot(model) -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- model = lmrob(geoMeanOfEffectorTcellSignature ~ reducedGeneSignature) -->
+
+<!-- pdf("CytolyticScoreVsCam121GeneSignatureWeighted.pdf") -->
+<!-- plot(x = reducedGeneSignature, y = geoMeanOfEffectorTcellSignature, xlab = "Cam_121 gene signature", ylab = "Effector T-cell Signature") -->
+<!-- abline(model) -->
+<!-- text(x = max(reducedGeneSignature) - 1, y = max(geoMeanOfEffectorTcellSignature), labels = paste("R = ", signif(sqrt(summary(model)$r.squared), digits = 4))) -->
+<!-- dev.off() -->
+
+<!-- # Histogram of residuals looks approximately normal -->
+<!-- hist(residuals(model), col="darkgray") -->
+<!-- plot(model) -->
+<!-- ``` -->
+
+<!-- ## CIBERSORT hot-cold heatmaps -->
+
+<!-- ```{r} -->
+<!-- scores = read.table(pathToImmuneScoreResults, sep = "\t", header = TRUE) -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- cellTypeHigh = data.frame("Score" = apply(scores[scores$Signature == "High", 54:75], 2, median)) -->
+<!-- cellTypeHigh$Group = "High" -->
+<!-- cellTypeHigh$CellType = rownames(cellTypeHigh) -->
+
+<!-- cellTypeLow = data.frame("Score" = apply(scores[scores$Signature == "Low", 54:75], 2, median)) -->
+<!-- cellTypeLow$Group = "Low" -->
+<!-- cellTypeLow$CellType = rownames(cellTypeLow) -->
+
+<!-- df = data.frame(rbind(cellTypeHigh, cellTypeLow)) -->
+
+<!-- suppressPackageStartupMessages(library(ggplot2)) -->
+<!-- suppressPackageStartupMessages(library(viridis)) -->
+<!-- p <- ggplot(df, aes(x = Group, y = CellType)) + geom_tile(aes(fill = Score)) + scale_fill_viridis_c(direction = -1, alpha = 0.9) + theme_bw() -->
+<!-- ggsave(filename = "CIBERSORTScoreWeighted.pdf", device = "pdf") -->
+<!-- #dev.off() -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- cellTypeHigh = data.frame("Score" = apply(scores[scores$Signature == "High", 51:53], 2, median)) -->
+<!-- cellTypeHigh$Group = "High" -->
+<!-- cellTypeHigh$EstimateScore = rownames(cellTypeHigh) -->
+
+<!-- cellTypeLow = data.frame("Score" = apply(scores[scores$Signature == "Low", 51:53], 2, median)) -->
+<!-- cellTypeLow$Group = "Low" -->
+<!-- cellTypeLow$EstimateScore = rownames(cellTypeLow) -->
+
+<!-- df = data.frame(rbind(cellTypeHigh, cellTypeLow)) -->
+
+<!-- library(ggplot2) -->
+<!-- library(viridis) -->
+<!-- p <- ggplot(df, aes(x = Group, y = EstimateScore)) + geom_tile(aes(fill = Score)) + scale_fill_viridis_c(direction = -1, alpha = 0.9) + theme_bw() -->
+<!-- ggsave(filename = "ESTIMATEScoreWeighted.pdf", device = "pdf") -->
+<!-- #dev.off() -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- for (cellType in colnames(scores)[51:75]) { -->
+<!--   model = lmrob(scores[[cellType]] ~ reducedGeneSignature) -->
+
+<!--   pdf(paste(cellType, "VsCam121GeneSignatureWeighted.pdf")) -->
+<!--   plot(x = reducedGeneSignature, y = scores[[cellType]], xlab = "Cam_121 gene signature", ylab = cellType) -->
+<!--   abline(model) -->
+<!--   text(x = max(reducedGeneSignature) - 1, y = max(scores[[cellType]]), labels = paste("R = ", signif(sqrt(summary(model)$r.squared), digits = 4))) -->
+<!--   dev.off() -->
+<!--   #print(sqrt(summary(model)$r.squared)) -->
+
+<!--   # Histogram of residuals looks approximately normal -->
+<!--   #hist(residuals(model), col="darkgray") -->
+<!--   #plot(model) -->
+<!-- } -->
+<!-- ``` -->
