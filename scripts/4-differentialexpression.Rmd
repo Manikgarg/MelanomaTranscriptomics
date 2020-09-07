@@ -1,0 +1,370 @@
+---
+title: "4 - Differential expression (v0.7)" 
+author: "D.-L. Couturier / R. Rabbie"
+date: '`r format(Sys.time(), "Last modified: %d %b %Y")`'
+output:
+  html_document:
+    theme: lumen 
+    highlight: tango
+    code_folding: show    
+    toc: true           
+    toc_depth: 3       
+    toc_float: true     
+    fig_width: 9
+    fig_height: 8
+    css: html/styles.css    
+    df_print: paged
+    number_sections: true
+---
+
+<!--- rmarkdown::render("~/cruk/redmine/5430/rmd/4-differentialexpression.Rmd") --->
+<!--- setwd("~/cruk/redmine/5430/rmd/") --->
+
+<img src="html/logo.png" style="position:absolute;top:0px;right:0px;" width="300" />
+
+
+```{r setup, include=FALSE}
+
+rm(list=ls())
+
+# load dataset
+print(load("results/rdata/1-rawcounts.rd"))
+
+# library
+library(DESeq2)
+library(colorspace)
+library(VennDiagram)
+```
+
+```{r message = FALSE}
+
+#   Input data files  :   results/rdata/1-rawcounts.rd
+#   
+#   Output data files :    -
+# 
+#   Required R packages :  DESeq2, colorspace, VennDiagram
+
+```
+
+
+
+
+&nbsp;
+
+# Differential expression: *Relapse versus No-relapse*
+
+The analysis is performed per tissue type, i.e., for 
+
+* Skin
+* Lymph node
+
+## Skin tissue 
+
+Here we select the skin samples and import the results of the iRAP pipeline for Skin (tissue code 1) as **irap**.
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+# tissue selection
+tissuew     = "Skin"
+pos.tissuew = rna_characteristics$tissue == tissuew & !is.na(rna_characteristics$tissue)  &
+              !apply(is.na(rna_characteristics[,c("Stage","Bres","ECOG","treatment","EventMet")]),1,any)
+# import initial results
+irap = read.csv("data/20181119_Email/EventMet0_1_tissuecode1.csv",header=TRUE,row.names=1) 
+```
+
+### Data preparation
+
+The function *DESeqDataSetFromMatrix* is typically used when a matrix of read counts prepared from another
+source is available. The *DESeqDataSetFromMatrix* function requires
+
+* the counts matrix, 
+* the information about the samples (the columns of the count matrix) *data.frame*, 
+* the design formula.
+
+For the design formula, we chose the following variables that we included in the model without interactions:
+
+* **5-level stage**. As this variable is highly related to N-class (Spearman correlation coefficient over 0.85), we picked the one with the lowest number of levels,
+* **2-level Breslow staging** and **2-level ECOG**. These variables were significantly associated with relapse and seemed to capture something other variables of interest did not.
+* **2-level treatment**. This variable was found to be related to relapse but is kept as control,
+* **2-level EventMet**, the variable of interest.
+
+Note 
+
+* that samples with missing **Breslow** staging were ignored (~10% of the samples),
+* that the function *DESeqDataSetFromMatrix* does not work with *ordered factors* so that the class of variables **Stage** and **Bres** were changed to *factor*,
+* **that we only considered the gene list available in the iRAP output** (this selection was already performed in the importation script).
+
+We now construct the *DESeqDataSet* objects 
+
+* **dds0**: object corresponding to the model with only EventMet as predictor,
+* **dds1**: object corresponding to the model with Stage, Bres, ECOG, treatment and EventMet as predictors.
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+# change of class
+rna_characteristics$Stage = factor(rna_characteristics$Stage,levels=levels(rna_characteristics$Stage),
+                                   ordered=FALSE)
+rna_characteristics$Bres  = factor(rna_characteristics$Bres ,levels=levels(rna_characteristics$Bres),
+                                   ordered=FALSE)
+
+# dds objects
+dds0 <- DESeqDataSetFromMatrix(countData = rna_counts[,pos.tissuew],
+                               colData   = rna_characteristics[pos.tissuew,],
+                               design    = ~ EventMet)
+dds1 <- DESeqDataSetFromMatrix(countData = rna_counts[pos.tissuew],
+                               colData   = rna_characteristics[pos.tissuew,],
+                               design    = ~ Stage+Bres+ECOG+treatment+EventMet)
+```
+Given DEseq2 default, it is more sensible to have the variable of interest positioned last in the design formula (as  log2 fold change and Wald test *p* value will then correspond to this variable).
+
+
+Even if we restrict our gene set to the one available in the iRAP output, we perform an additional pre-filtering aiming to keep only genes showing at least 10 reads in total (ie, over all samples). As we avoided duplicated samples per patient to avoid within-patient dependence, the number of counts per gene is smaller than the one of the iRAP pipeline:
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+# pre-filtering
+totalcounts0.gene = rowSums(counts(dds0))
+dds0 <- dds0[totalcounts0.gene>=10,]
+#
+totalcounts1.gene = rowSums(counts(dds1))
+dds1 <- dds1[totalcounts1.gene>=10,]
+```
+```{r message = FALSE, warning = FALSE, include=FALSE}
+# dimensions post filtering
+m = nrow(dds0)
+n = ncol(dds0)
+```
+
+Post-filtering, the intensities of `r m` genes are available for a total of `r n` patients 
+
+
+### Differential expression analysis and results
+
+We now perform the DE by means of the function **DEseq** in which the different steps of an differential expression analysis were wrapped. The function **results** 
+
+
+#### Estimation
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+# dds0
+if(any(dir("results/rdata/")==paste0("dds0-",tissuew))){
+    load(paste0("results/rdata/dds0-",tissuew))
+}else{
+    dds0 <- DESeq(dds0)
+    res0 <- results(dds0)
+    res0
+    save(dds0,res0,file=paste0("results/rdata/dds0-",tissuew))    
+}
+
+# dds1
+if(any(dir("results/rdata/")==paste0("dds1-",tissuew))){
+    load(paste0("results/rdata/dds1-",tissuew))
+}else{
+    dds1 <- DESeq(dds1)
+    res1 <- results(dds1)
+    res1
+    save(dds1,res1,file=paste0("results/rdata/dds1-",tissuew))    
+}
+```
+
+
+#### Results
+
+Here we compare the number of significant genes per model (iRAP, Event only as predictor, Event and controls as predictor).
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+#  
+sig.irap = rownames(irap)[irap$padj<0.05&!is.na(irap$padj)]
+sig.res0 = rownames(res0)[res0$padj<0.05&!is.na(res0$padj)]
+sig.res1 = rownames(res1)[res1$padj<0.05&!is.na(res1$padj)]
+n1    = length(sig.irap)
+n2    = length(sig.res0)
+n3    = length(sig.res1)
+n12   = sum(table(c(sig.irap,sig.res0))==2)
+n23   = sum(table(c(sig.res0,sig.res1))==2)
+n13   = sum(table(c(sig.irap,sig.res1))==2)
+n123  = sum(table(c(sig.irap,sig.res0,sig.res1))==3)
+# plot
+venn.plot <- draw.triple.venn(
+    area1 = n1,
+    area2 = n2,
+    area3 = n3,
+    n12   = n12,
+    n23   = n23,
+    n13   = n13,
+    n123  = n123,
+    category = c("iRAP","EventMet\nonly","EventMet and controls"),
+    fill = c("blue","red","green"),
+    lty = "blank",
+    cex = 1.5,
+    cat.cex = 1.25,
+    cat.col = c("blue","red","green")
+    );
+grid.draw(venn.plot);
+``` 
+
+As expected, the list of genes detected by the iRAP and event-only analysis is similar (same DESeq analysis but performed on a different list of samples as samples with missing Breslow staging and with participant-dependence were ignored).
+
+The list of genes appearing as significant when controlling for the variables mentioned above is way smaller. This may be due, for example, to lack of power (there is a loss of degrees of freedom induced by considering more complex models) or by confounding. 
+
+
+We finally define the list of gene significant according to at least one method at the 5% level after adjustment for multiplicity and save it under *results/tables/4-DEgene_skin.csv*. Note that there are some missings: we refer to [http://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#independent-filtering-of-results]  for detail. 
+
+```{r deseq}
+# data frame
+temp = unique(c(sig.irap,sig.res0,sig.res1))
+skin = data.frame(iRAP=rep(NA,length(temp)),EventOnly=rep(NA,length(temp)),
+                  EventAndControls=rep(NA,length(temp)),row.names=temp)
+skin[temp,"iRAP"] = irap[temp,"padj"]
+skin[temp,"EventOnly"] = res0[temp,"padj"]
+skin[temp,"EventAndControls"] = res1[temp,"padj"]
+skin = cbind(skin,skin<0.05)
+colnames(skin)[4:6] = paste0("sig.",colnames(skin)[1:3])
+#
+write.csv(skin,file="results/tables/4-DEgene_skin.csv")
+# print
+as.data.frame(skin)
+```
+
+
+
+
+## Lymph node tissue
+
+Here we select the Lymph node tissue samples and import the results of the iRAP pipeline for Lymph node (tissue code 2) as **irap**.
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+# 
+tissuew     = "Lymph node"
+pos.tissuew = rna_characteristics$tissue == tissuew & !is.na(rna_characteristics$tissue) &
+              !apply(is.na(rna_characteristics[,c("Stage","Bres","ECOG","treatment","EventMet")]),1,any)
+# import initial results
+irap = read.csv("data/20181119_Email/EventMet0_1_tissuecode2.csv",header=TRUE,row.names=1) 
+
+```
+
+### Data preparation
+
+We construct the *DESeqDataSet* as follows:
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+# change of class
+rna_characteristics$Stage = factor(rna_characteristics$Stage,levels=levels(rna_characteristics$Stage),
+                                   ordered=FALSE)
+rna_characteristics$Bres  = factor(rna_characteristics$Bres ,levels=levels(rna_characteristics$Bres),
+                                   ordered=FALSE)
+
+# dds objects
+dds0 <- DESeqDataSetFromMatrix(countData = rna_counts[,pos.tissuew],
+                               colData   = rna_characteristics[pos.tissuew,],
+                               design    = ~ EventMet)
+dds1 <- DESeqDataSetFromMatrix(countData = rna_counts[pos.tissuew],
+                               colData   = rna_characteristics[pos.tissuew,],
+                               design    = ~ Stage+Bres+ECOG+treatment+EventMet)
+```
+
+Same pre-filtering as above
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+# pre-filtering
+totalcounts0.gene = rowSums(counts(dds0))
+dds0 <- dds0[totalcounts0.gene>=10,]
+#
+totalcounts1.gene = rowSums(counts(dds1))
+dds1 <- dds1[totalcounts1.gene>=10,]
+```
+```{r message = FALSE, warning = FALSE, include=FALSE}
+# dimensions post filtering
+m = nrow(dds0)
+n = ncol(dds0)
+```
+
+Post-filtering, the intensities of `r m` genes are available for a total of `r n` patients 
+
+
+### Differential expression analysis and results
+
+We now perform the DE analysis
+
+
+#### Estimation
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+# dds0
+if(any(dir("results/rdata/")==paste0("dds0-",tissuew))){
+    load(paste0("results/rdata/dds0-",tissuew))
+}else{
+    dds0 <- DESeq(dds0)
+    res0 <- results(dds0)
+    res0
+    save(dds0,res0,file=paste0("results/rdata/dds0-",tissuew))    
+}
+
+# dds1
+if(any(dir("results/rdata/")==paste0("dds1-",tissuew))){
+    load(paste0("results/rdata/dds1-",tissuew))
+}else{
+    dds1 <- DESeq(dds1)
+    res1 <- results(dds1)
+    res1
+    save(dds1,res1,file=paste0("results/rdata/dds1-",tissuew))    
+}
+```
+
+
+#### Results
+
+Here we compare the number of significant genes per model (iRAP, Event only as predictor, Event and controls as predictor).
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+#  
+sig.irap = rownames(irap)[irap$padj<0.05&!is.na(irap$padj)]
+sig.res0 = rownames(res0)[res0$padj<0.05&!is.na(res0$padj)]
+sig.res1 = rownames(res1)[res1$padj<0.05&!is.na(res1$padj)]
+n1    = length(sig.irap)
+n2    = length(sig.res0)
+n3    = length(sig.res1)
+n12   = sum(table(c(sig.irap,sig.res0))==2)
+n23   = sum(table(c(sig.res0,sig.res1))==2)
+n13   = sum(table(c(sig.irap,sig.res1))==2)
+n123  = sum(table(c(sig.irap,sig.res0,sig.res1))==3)
+# plot
+venn.plot <- draw.triple.venn(
+    area1 = n1,
+    area2 = n2,
+    area3 = n3,
+    n12   = n12,
+    n23   = n23,
+    n13   = n13,
+    n123  = n123,
+    category = c("iRAP","EventMet\nonly","EventMet and controls"),
+    fill = c("blue","red","green"),
+    lty = "blank",
+    cex = 1.5,
+    cat.cex = 1.25,
+    cat.col = c("blue","red","green")
+    );
+grid.draw(venn.plot);
+``` 
+
+For this tissue type, the results are rather different: iRAP gets a higher number of significant genes (with 350 only significant according to iRAP) and the the second most frequent list of genes is the list of genes significant according to all methods (264).
+
+The larger list of significant genes detected by iRAP at the 5% level may be due to the increased power related to larger sample size power. The larger list of genes detected as significant by all methods may suggest that DE is less dependent on the variables we are controlling for.
+
+
+We finally define the list of gene significant according to at least one method at the 5% level after adjustment for multiplicity and save it under *results/tables/4-DEgene_lymphenode.csv*. Note that there are some missings: we refer to [http://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#independent-filtering-of-results]  for detail. 
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+# data frame
+temp = unique(c(sig.irap,sig.res0,sig.res1))
+lymphenode = data.frame(iRAP=rep(NA,length(temp)),EventOnly=rep(NA,length(temp)),
+                  EventAndControls=rep(NA,length(temp)),row.names=temp)
+lymphenode[temp,"iRAP"] = irap[temp,"padj"]
+lymphenode[temp,"EventOnly"] = res0[temp,"padj"]
+lymphenode[temp,"EventAndControls"] = res1[temp,"padj"]
+lymphenode = cbind(lymphenode,lymphenode<0.05)
+colnames(lymphenode)[4:6] = paste0("sig.",colnames(lymphenode)[1:3])
+#
+write.csv(lymphenode,file="results/tables/4-DEgene_lymphenode.csv")
+# print
+as.data.frame(lymphenode)
+```
+
+
