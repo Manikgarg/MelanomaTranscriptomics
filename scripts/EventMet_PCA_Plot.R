@@ -1,5 +1,7 @@
 library("DESeq2")
 library("ggplot2")
+library("openxlsx")
+
 theme_set(ggpubr::theme_pubr(base_size=10, legend='bottom'))
 
 load("./Downloads/de-7.Rdata")
@@ -14,6 +16,8 @@ plotPCARiskGroup = function(geneExpressionDf, plotScreePlot, plotType){
       dataGG = data.frame(xPComponent = PCA$x[,xComponent], yPComponent = PCA$x[,yComponent], 
                           Tissue_Code = clinicalData$Tissue_Code,
                           Metastases = clinicalData$EventMet)
+      write.xlsx(dataGG, "~/Desktop/Melanoma/githubUpload/Source_Data/Fig_S2.xlsx", colNames = TRUE, rowNames = TRUE, append = TRUE)
+      
       plot1 = ggplot(dataGG, aes(x = xPComponent, y = yPComponent, 
                                  shape = clinicalData$Tissue_Code, 
                                  color = clinicalData$EventMet)) +
@@ -24,12 +28,12 @@ plotPCARiskGroup = function(geneExpressionDf, plotScreePlot, plotType){
         scale_shape(name = "Tissue")+
         coord_fixed()
       
-      ggsave(filename = paste("./Desktop/Melanoma/", xComponent, "Vs", yComponent, "PlotForMetastases", 
+      ggsave(filename = paste("~/Desktop/Melanoma/", xComponent, "Vs", yComponent, "PlotForMetastases", 
                               plotType, ".png", sep = ""), width=8, units='cm')
       #dev.off()
     }}
-  if(plotScreePlot & !file.exists(paste("./Desktop/Melanoma/ScreePlotForMetastases", plotType, ".pdf", sep = ""))){
-    png(file=paste("./Desktop/Melanoma/ScreePlotForMetastases", plotType, ".png", sep = ""),
+  if(plotScreePlot & !file.exists(paste("~/Desktop/Melanoma/ScreePlotForMetastases", plotType, ".pdf", sep = ""))){
+    png(file=paste("~/Desktop/Melanoma/ScreePlotForMetastases", plotType, ".png", sep = ""),
         width = 8, units = "cm")
     plot2 = screeplot(PCA, type = 'lines')
     dev.off()
@@ -38,7 +42,7 @@ plotPCARiskGroup = function(geneExpressionDf, plotScreePlot, plotType){
   }
 }
 
-plotPCARiskGroup(t(expressionData), plotScreePlot = TRUE, plotType = "AllGenes")
+#plotPCARiskGroup(t(expressionData), plotScreePlot = TRUE, plotType = "AllGenes")
 
 #Subset to top 1000 most variable genes
 
