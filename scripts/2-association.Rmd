@@ -1,0 +1,433 @@
+---
+title: "2 - Association (v1.0)" 
+author: "D.-L. Couturier / R. Rabbie"
+date: '`r format(Sys.time(), "Last modified: %d %b %Y")`'
+output:
+  html_document:
+    theme: lumen 
+    highlight: tango
+    code_folding: show    
+    toc: true           
+    toc_depth: 3       
+    toc_float: true     
+    fig_width: 9
+    fig_height: 6
+    css: html/styles.css    
+    df_print: paged
+    number_sections: true
+---
+
+<!--- rmarkdown::render("~/cruk/redmine/5430/rmd/2-association.Rmd") --->
+<!--- setwd("~/cruk/redmine/5430/rmd/") --->
+
+<img src="html/logo.png" style="position:absolute;top:0px;right:0px;" width="300" />
+
+
+```{r setup, include=FALSE}
+
+rm(list=ls())
+
+# source R import functions
+source("source/functions.r")
+
+# load dataset
+load("results/rdata/0-melanoma.rd")
+
+# library
+library(coin)
+library(colorspace)
+```
+
+```{r message = FALSE}
+
+#   Input data files  :    results/rdata/0-melanoma.rd
+#   
+#   Output data files :    -
+# 
+#   Required R packages :  coin, colorspace
+
+```
+
+&nbsp;
+
+# Association between *presence of relapse* and selected variables
+
+In this section, the association between *presence of relapse* (dichotomous variable) and selected variables available in the *melanoma* dataset is tested under the following scenarios: 
+
+* **Nominal/Nominal**: both variables as *nominal* factors (*presence of relapse* as 2-level factor) and use of a Pearson’s Chi-square test,
+* **Nominal/Ordinal**: *presence of relapse* as a 2-level **nominal** variable, the other variable as an ordinal factor, and using a *Cochran􏰔-Armitage trend test*.
+* **Nominal/Continuous**: *presence of relapse* as a 2-level **nominal** variable, the other variable as a continuous one, and using a *Wilcoxon test*.
+
+Note 
+
+* that the first  2 options are special cases of the *generalised Cochran-Mantel-Haenszel test*,
+* that we chose to assume equidistant scores when considering ordinal variables,
+* that the **Nominal/Ordinal** is more efficient (under the model) than the **Nominal/Nominal** case as less degrees of freedom are required.
+
+We also analyse the association between *presence of relapse* and the same set of variables when correcting for the length of follow-up by including *length of follow-up* as predictor in a logistic regression.
+
+We first define the list of predictors of interest:
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+## var list:
+listvarw = c("Sex","Age","Nclass",
+             "Stage","Site","Bres",
+             "Ulc","BRAF","NRAS")
+n.var = length(listvarw)
+id.var = data.frame(pos=1:n.var,id=listvarw,
+                    name = c("Sex","Age",
+                             "N-classification",
+                             "Stage of melanoma","Primary site",
+                             "Breslow thickness",
+                             "Ulceration of primary tumour",
+                             "BRAF genotype",
+                             "NRAS genotype"
+                             ),
+                    class = NA,        
+                    stringsAsFactors=FALSE)
+id.var$class = sapply(melanoma[,id.var$id],function(x)class(x)[1])
+```
+
+Note that we did not consider Age as it was missing for patients with no relapse.
+
+&nbsp;
+
+### Nominal/Nominal association 
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+# matrix
+out = as.data.frame(matrix(nrow=n.var,ncol=3,
+             dimnames=list(id.var$id,c("X-squared","df","p-value"))))
+extract.fun = function(x)c(x[[1]],x[[2]],x[[3]])             
+for(vw in 1:n.var){
+    if(id.var$class[vw]!="numeric"&id.var$class[vw]!="integer"){
+        out[vw,] = extract.fun(chisq.test(table(melanoma$EventMet,
+                               melanoma[,id.var$id[vw]]),
+                               #simulate.p.value = TRUE,B = 500000
+                               ))
+        }
+    }
+    # the warning can be ignored (result check by simulation)
+# adjust p-value
+out = out[!is.na(out[,1]),]
+out$'adj. p-value' = p.adjust(out$'p-value',method="holm",n=n.var)
+out$'Sig.' = sig.fun(out$'adj. p-value')
+# print results
+out
+```
+
+After the *Holm* multiplicity correction, we can note that Nclass, Stage are significantly associated with the relapse. Thickness and Ulceration are borderline (significant at the 5% level but not after multiplicity correction).
+
+For these variables, we now use mosaic plot to analyse the association.
+Mosaic plots represent the different contingency table cells by means of tiles. Area of the tiles is proportional to the observed frequencies. Each tile is coloured depending on to its (signed) contributions to the Pearson's Chi-square statistics: blue and red tiles respectively correspond respectively to the cells showing frequencies (significantly) smaller and greater than expected under the independence assumption. 
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+par(mfrow=c(2,2))
+for(vw in 1:nrow(out)){
+    if(out$'adj. p-value'[vw]<0.2){
+    mosaicplot(table(melanoma$EventMet,melanoma[,rownames(out)[vw]]),main="",
+           color = TRUE, shade = c(2,3,4,5),
+           xlab = "Presence of relapse",
+           ylab = id.var$name[which(rownames(out)[vw]==id.var$id)],
+           las=2,dir="v",cex.axis=.7)
+    }
+    }
+```
+
+For all ordinal predictors of *presence of relapse*, we can note a trend, with the left column (no relapse) going from red to blue (or blue to red) while the right column (relapse) does the opposite. This trend are not perfect though.
+
+The next section analyse them more formally with Cochrane Armitage trend tests.
+
+&nbsp;
+
+### Nominal/Ordinal association 
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+# matrix
+out = as.data.frame(matrix(nrow=n.var,ncol=3,
+             dimnames=list(id.var$id,c("X-squared","df","p-value"))))
+extract.fun = function(x)c(statistic(x)^2,1,pvalue(x))            
+for(vw in 1:n.var){
+    if(id.var$class[vw]=="ordered"){
+        tbw  = table(relapse=melanoma$EventMet,pred=melanoma[,id.var$id[vw]])
+        out[vw,] = extract.fun(chisq_test(tbw, scores = list("pred" =
+                           1:nlevels(melanoma[,id.var$id[vw]]))))        
+        }
+    }
+    # the warning can be ignored (result check by simulation)
+# adjust p-value
+out = out[!is.na(out[,1]),]
+out$'adj. p-value' = p.adjust(out$'p-value',method="holm",n=n.var)
+out$'Sig.' = sig.fun(out$'adj. p-value')
+# print results
+out
+```
+
+We can note that the (ordinal) *trend* of the 3 variables considered here is confirmed. Breslow thickness is now significant.
+
+&nbsp;
+
+### Nominal/Continous association
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+# matrix
+out = as.data.frame(matrix(nrow=n.var,ncol=2,
+             dimnames=list(id.var$id,c("W","p-value"))))
+extract.fun = function(x)c(x[[1]],x[[3]])             
+for(vw in 1:n.var){
+    if(id.var$class[vw]=="numeric"|id.var$class[vw]=="integer"){
+        out[vw,] = extract.fun(wilcox.test(
+                   as.formula(paste0(id.var$id[vw],"~EventMet")),data=melanoma))
+        }
+    }
+    # the warning can be ignored (result check by simulation)
+# adjust p-value
+out = out[!is.na(out[,1]),]
+out$'adj. p-value' = p.adjust(out$'p-value',method="holm",n=n.var)
+out$'Sig.' = sig.fun(out$'adj. p-value')
+# print results
+out
+```
+
+The difference in means is not significant at the 5% level. The following boxplot of *Age at randomisation* as a function of *presence of relapse* roughly shows the same distribution for both levels:  
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+boxplot(Age~EventMet,data=melanoma,col="light gray")
+```
+
+&nbsp;
+
+### Association correcting for length of follow-up (all categorical predictors)
+
+We now control for length of follow-up by including this variable in logistic regressions: 
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+melanoma$lengthfollowup = as.numeric((melanoma$DOC-melanoma$DDiag)/356.25)
+# matrix
+out = as.data.frame(matrix(nrow=n.var,ncol=3,
+             dimnames=list(id.var$id,c("Deviance","df","p-value"))))
+extract.fun = function(x){x[2,c("Deviance","Df","Pr(>Chi)")]}
+for(vw in 1:n.var){
+    formula = paste0("EventMet~",id.var$id[vw],"+lengthfollowup")
+    dataw   = na.omit(melanoma[,c("lengthfollowup","EventMet",id.var$id[vw])])
+    restricted  = glm(EventMet~lengthfollowup,
+                      data=dataw,family=binomial)    
+    full = glm(as.formula(formula),
+               data=dataw,family=binomial)
+    out[vw,] = extract.fun(anova(restricted,full,test="LRT"))
+    }
+    # the warning can be ignored (result check by simulation)
+# adjust p-value
+out = out[!is.na(out[,1]),]
+out$'adj. p-value' = p.adjust(out$'p-value',method="holm",n=n.var)
+out$'Sig.' = sig.fun(out$'adj. p-value')
+# print results
+out
+```
+
+When correcting for follow-up time, only N-classification and Stage remain significant at the 5% level.
+
+&nbsp;
+
+### Association correcting for length of follow-up (ordinal predictors)
+
+We now use equidistant scores for ordinal variables:
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+melanoma$lengthfollowup = as.numeric((melanoma$DOC-melanoma$DDiag)/356.25)
+# matrix
+out = as.data.frame(matrix(nrow=n.var,ncol=3,
+             dimnames=list(id.var$id,c("Deviance","df","p-value"))))
+extract.fun = function(x){x[2,c("Deviance","Df","Pr(>Chi)")]}
+for(vw in 1:n.var){
+    if(id.var$class[vw]=="ordered"){
+        formula = paste0("EventMet~I(as.numeric(",id.var$id[vw],"))+lengthfollowup")
+        dataw   = na.omit(melanoma[,c("lengthfollowup","EventMet",id.var$id[vw])])
+        restricted  = glm(EventMet~lengthfollowup,
+                          data=dataw,family=binomial)    
+        full = glm(as.formula(formula),
+                   data=dataw,family=binomial)
+        out[vw,] = extract.fun(anova(restricted,full,test="LRT"))
+        }
+    }
+    # the warning can be ignored (result check by simulation)
+# adjust p-value
+out = out[!is.na(out[,1]),]
+out$'adj. p-value' = p.adjust(out$'p-value',method="holm",n=n.var)
+out$'Sig.' = sig.fun(out$'adj. p-value')
+# print results
+out
+```
+
+When considering Breslow thickness as ordinal and correcting for length of follow-up, its significance disapprears.
+
+&nbsp;
+
+# Association between *Relapse in the brain* and selected variables
+
+Same analysis as before but now focusing on the association between *Relapse in the brain given a relapse occured* and the different variables considered above.
+We consider here the binary variable *relapse in the brain* defined as follows:
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+melanoma$relapselocation = factor(melanoma$DRSite!="Other only",
+                                  levels=c(TRUE,FALSE),
+                                  labels=c("Brain","Other exclusively"))
+table(melanoma$relapselocation,melanoma$DRSite)
+```
+
+&nbsp;
+
+### Nominal/Nominal association 
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+# matrix
+out = as.data.frame(matrix(nrow=n.var,ncol=3,
+             dimnames=list(id.var$id,c("X-squared","df","p-value"))))
+extract.fun = function(x)c(x[[1]],x[[2]],x[[3]])             
+for(vw in 1:n.var){
+    if(id.var$class[vw]!="numeric"&id.var$class[vw]!="integer"){
+        out[vw,] = extract.fun(chisq.test(table(melanoma$relapselocation,
+                               melanoma[,id.var$id[vw]]),
+                               #simulate.p.value = TRUE,B = 500000
+                               ))
+        }
+    }
+    # the warning can be ignored (result check by simulation)
+# adjust p-value
+out = out[!is.na(out[,1]),]
+out$'adj. p-value' = p.adjust(out$'p-value',method="holm",n=n.var)
+out$'Sig.' = sig.fun(out$'adj. p-value')
+# print results
+out
+```
+
+None of the variables of interest is significantly related to the location of the relaspe. Note that, as we conditioned the analysis on patients who experienced a relapse, we lost considerable power. The most interesting variable is Breslow thickness (p-value < 0.1). 
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+par(mfrow=c(1,1))
+for(vw in 1:nrow(out)){
+    if(out$'p-value'[vw]<0.1){
+    mosaicplot(table(melanoma$relapselocation,melanoma[,rownames(out)[vw]]),main="",
+           color = TRUE, shade = c(2,3,4,5),
+           xlab = "Presence of relapse",
+           ylab = id.var$name[which(rownames(out)[vw]==id.var$id)],
+           las=2,dir="v",cex.axis=.7)
+    }
+    }
+```
+
+&nbsp;
+
+### Nominal/Ordinal association 
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+# matrix
+out = as.data.frame(matrix(nrow=n.var,ncol=3,
+             dimnames=list(id.var$id,c("X-squared","df","p-value"))))
+extract.fun = function(x)c(statistic(x)^2,1,pvalue(x))            
+for(vw in 1:n.var){
+    if(id.var$class[vw]=="ordered"){
+        tbw  = table(location=melanoma$relapselocation,
+                     pred=melanoma[,id.var$id[vw]])
+        out[vw,] = extract.fun(chisq_test(tbw, scores = list("pred" =
+                           1:nlevels(melanoma[,id.var$id[vw]]))))        
+        }
+    }
+    # the warning can be ignored (result check by simulation)
+# adjust p-value
+out = out[!is.na(out[,1]),]
+out$'adj. p-value' = p.adjust(out$'p-value',method="holm",n=n.var)
+out$'Sig.' = sig.fun(out$'adj. p-value')
+# print results
+out
+```
+
+Not much going on
+
+&nbsp;
+
+### Nominal/Continous association
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+# matrix
+out = as.data.frame(matrix(nrow=n.var,ncol=2,
+             dimnames=list(id.var$id,c("W","p-value"))))
+extract.fun = function(x)c(x[[1]],x[[3]])             
+for(vw in 1:n.var){
+    if(id.var$class[vw]=="numeric"|id.var$class[vw]=="integer"){
+        out[vw,] = extract.fun(wilcox.test(
+                   as.formula(paste0(id.var$id[vw],"~relapselocation")),data=melanoma))
+        }
+    }
+    # the warning can be ignored (result check by simulation)
+# adjust p-value
+out = out[!is.na(out[,1]),]
+out$'adj. p-value' = p.adjust(out$'p-value',method="holm",n=n.var)
+out$'Sig.' = sig.fun(out$'adj. p-value')
+# print results
+out
+```
+
+&nbsp;
+
+### Association correcting for length of follow-up (all categorical or continuous predictors)
+
+We now control for length of follow-up until relapse by including this variable in logistic regressions.  
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+melanoma$lengthfollowup = as.numeric((melanoma$DDistMets-melanoma$DDiag)/356.25)
+# matrix
+out = as.data.frame(matrix(nrow=n.var,ncol=3,
+             dimnames=list(id.var$id,c("Deviance","df","p-value"))))
+extract.fun = function(x){x[2,c("Deviance","Df","Pr(>Chi)")]}
+for(vw in 1:n.var){
+    formula = paste0("relapselocation~",id.var$id[vw],"+lengthfollowup")
+    dataw   = na.omit(melanoma[,c("lengthfollowup","relapselocation",id.var$id[vw])])
+    restricted  = glm(relapselocation~lengthfollowup,
+                      data=dataw,family=binomial)    
+    full = glm(as.formula(formula),
+               data=dataw,family=binomial)
+    out[vw,] = extract.fun(anova(restricted,full,test="LRT"))
+    }
+    # the warning can be ignored (result check by simulation)
+# adjust p-value
+out = out[!is.na(out[,1]),]
+out$'adj. p-value' = p.adjust(out$'p-value',method="holm",n=n.var)
+out$'Sig.' = sig.fun(out$'adj. p-value')
+# print results
+out
+```
+
+When correcting for follow-up time, only Breslow thickness and Ulceration are close to significance at the 5% level.
+
+### Association correcting for length of follow-up (ordinal predictors)
+
+We now use equidistant scores for ordinal variables:
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+melanoma$lengthfollowup = as.numeric((melanoma$DDistMets-melanoma$DDiag)/356.25)
+# matrix
+out = as.data.frame(matrix(nrow=n.var,ncol=3,
+             dimnames=list(id.var$id,c("Deviance","df","p-value"))))
+extract.fun = function(x){x[2,c("Deviance","Df","Pr(>Chi)")]}
+for(vw in 1:n.var){
+    if(id.var$class[vw]=="ordered"){
+        formula = paste0("relapselocation~I(as.numeric(",id.var$id[vw],"))+lengthfollowup")
+        dataw   = na.omit(melanoma[,c("lengthfollowup","relapselocation",id.var$id[vw])])
+        restricted  = glm(relapselocation~lengthfollowup,
+                          data=dataw,family=binomial)    
+        full = glm(as.formula(formula),
+                   data=dataw,family=binomial)
+        out[vw,] = extract.fun(anova(restricted,full,test="LRT"))
+        }
+    }
+    # the warning can be ignored (result check by simulation)
+# adjust p-value
+out = out[!is.na(out[,1]),]
+out$'adj. p-value' = p.adjust(out$'p-value',method="holm",n=n.var)
+out$'Sig.' = sig.fun(out$'adj. p-value')
+# print results
+out
+```
+
+

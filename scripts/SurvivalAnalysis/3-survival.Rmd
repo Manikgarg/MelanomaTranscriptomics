@@ -1,0 +1,785 @@
+---
+title: "3 - Survival (v1.2)" 
+author: "D.-L. Couturier / R. Rabbie"
+date: '`r format(Sys.time(), "Last modified: %d %b %Y")`'
+output:
+  html_document:
+    theme: lumen 
+    highlight: tango
+    code_folding: show    
+    toc: true           
+    toc_depth: 3       
+    toc_float: true     
+    fig_width: 9
+    fig_height: 8
+    css: html/styles.css    
+    df_print: paged
+    number_sections: true
+---
+
+<!--- rmarkdown::render("~/cruk/redmine/5430/rmd/3-survival.Rmd") --->
+<!--- setwd("~/cruk/redmine/5430/rmd/") --->
+
+<img src="html/logo.png" style="position:absolute;top:0px;right:0px;" width="300" />
+
+
+```{r setup, include=FALSE}
+
+rm(list=ls())
+
+# source R import functions
+source("../Downloads/functions.r")
+
+# load dataset
+load("../Downloads/1-melanoma.rd")
+load("../Downloads/1-vst.rd")
+
+# library
+library(survival)
+library(colorspace)
+library(glmnet)
+library(coxme)
+
+# adapt rownames of id.gene
+rownames(id.gene)=id.gene$id
+
+```
+
+```{r message = FALSE}
+
+#   Input data files  :   results/rdata/0-melanoma.rd
+#   
+#   Output data files :    -
+# 
+#   Required R packages :  suvival, colorspace, glmnet, coxme
+
+```
+
+
+&nbsp;
+
+
+# Descriptive analyses
+
+In this section, we propose a few descriptive analyses of the survival outcomes
+
+&nbsp;
+
+## Comparison of the different Dates (entry, diagnosis, primary surgery)
+
+&nbsp;
+
+### Matrix scatter plot
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+pairs(melanoma[,c("DDiag","DExc","DOE","DDistMets","DOC")],
+      pch=c(1,2)[as.numeric(melanoma$EventMet)],
+      col=c(1,2)[melanoma$Dead+1])
+```
+
+We can note that 
+
+* DDiag matches DExc in most cases (meaning that surgery is performed at time of diagnostic),
+* delayed entries in the study are very common.
+
+&nbsp;
+
+### Time line per participant
+
+In the following plot, the timeline of each patient is drawn
+
+* the left side of the orange segment correspond to the time of diagnostic,
+* the orange segments correspond to time from diagnosis until date of entry in the study,
+* the black points correspond to time of entry,
+* the blue segments correspond 
+    * to time from date of entry until time of last follow up for patients without relapse,
+    * to time from relapse until time of last follow up for patients with relapse,
+* the violet segments correspond to time from date of entry until time of relaspe,
+* the red/green points on the right correspond to status at last follow-up (dead/alive).
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+minday = as.numeric(as.Date(min(melanoma[,c("DDiag","DExc","DOE","DDistMets","DOC")][!is.na(melanoma[,c("DDiag","DExc","DOE","DDistMets","DOC")])]), format = "%Y-%m-%d"))     
+maxday = as.numeric(as.Date(max(melanoma[,c("DDiag","DExc","DOE","DDistMets","DOC")][!is.na(melanoma[,c("DDiag","DExc","DOE","DDistMets","DOC")])]), format = "%Y-%m-%d"))       
+#
+colw = rainbow(10)[c(2,9,7)]
+plot(1,1,pch="",ylab="",xlab="",xlim=c(minday,maxday),ylim=c(1,nrow(melanoma)))
+for(iw in 1:nrow(melanoma)){#iw=1
+    ddiag = as.numeric(melanoma$DDiag[iw])
+    if(is.na(ddiag)){ddiag=as.numeric(melanoma$DExc[iw])}
+    dentry = as.numeric(melanoma$DOE[iw])
+    drelapse = as.numeric(melanoma$DDistMets[iw])
+    dlast = as.numeric(melanoma$DOC[iw])
+    dead = melanoma$Dead[iw]+1
+    #
+    roww = nrow(melanoma)+1-iw
+    points(dentry,roww,cex=.3)
+    #
+    if(!is.na(ddiag)){segments(ddiag,roww,dentry,roww,col=colw[1],lwd=.5)}
+    if(!is.na(drelapse)){
+        segments(dentry,roww,drelapse,roww,col=colw[2],lwd=.5)
+        segments(drelapse,roww,dlast,roww,col=colw[3],lwd=.5)
+        points(dlast,roww,pch=c(">","+")[dead],col=c("green","red")[dead],cex=.3)
+    }else{
+        segments(dentry,roww,dlast,roww,col=colw[3],lwd=.5)
+        points(dlast,roww,pch=c(">","+")[dead],col=c("green","red")[dead],cex=.3)
+    }
+    }
+```
+
+The delayed times of entry, sometimes lasting years, are potentially problematic for the association and survival analyses (Note that the *Melanoma Institute -- Australia* has no such such problem in the Australian database as it is  mandatory by law to communicate melanoma disease).    
+
+&nbsp;
+
+## Kaplan-Meier survival curves 
+
+&nbsp;
+
+### Overall survival from time of diagnosis
+
+We first define the survival outcomes of interest as follow
+
+* survival_rc: **time from diagnosis (DDiag) to death (DOC) from any cause, right-censored due to loss of follow up or alive at the time of the end of the study** 
+* survival_ltrc: **time from diagnosis (DDiag) to death (DOC) from any cause, left-truncated due to delayed patient enrolment (DExc) and right-censored due to loss of follow up or alive at the time of the end of the study** 
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+# right censored only survival (rc):
+melanoma$survival_rc = Surv(time  = (melanoma$DOC-melanoma$DDiag)/365.25,
+                            event = as.numeric(melanoma$Dead))
+#  left trucated + right censored (ltrc):
+melanoma$survival_ltrc = Surv(time  = (melanoma$DOE-melanoma$DDiag)/365.25,
+                              time2 = (melanoma$DOC-melanoma$DDiag)/365.25,
+                              event = as.numeric(melanoma$Dead))
+    # checks: 
+    # 1: compare delf-defined survival in years to 
+    #    available survival in months                          
+    # 2: compare time to entry and time to censoring/death     
+    par(mfrow=c(1,2),omi=c(0,0,.4,0),mar=c(4,4,3,1))
+    plot(melanoma$survival_rc[,1],melanoma$SurvPrim,
+         xlab="Time from diagnosis to entry (months)",
+         ylab="(self-defined) Time from diagnosis to entry (years)")
+    plot(melanoma$survival_ltrc[,1],melanoma$survival_ltrc[,2],
+         xlab="Time from diagnosis to entry",
+         ylab="Time from diagnosis to censoring",
+         col=c("black","red")[melanoma$survival_ltrc[,3]+1])
+    abline(0,1,col="blue")
+```
+
+Next, we estimate and display the survival curves as a function of presence/absence of distant relapse for both survival outcomes:
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+par(mfrow=c(1,1),omi=c(0,0,.4,0),mar=c(4,4,3,1))
+levelw   = levels(melanoma$EventMet)
+n.levelw = length(levelw)
+upper    = 15 # years
+
+# right censoring only (rd)
+fit_rc   = survfit(survival_rc~EventMet,data = melanoma,
+                  type="kaplan-meier")
+fit_ltrc = survfit(survival_ltrc~EventMet,data = melanoma,
+                  type="kaplan-meier")
+plot(fit_ltrc, conf.int=FALSE, col=rainbow(n.levelw), 
+     xlab="",ylab ="Survival",axes=FALSE,
+     ylim=c(0,1.2),xlim=c(0,upper),
+     main="Overall Survival as a function of relapse")
+lines(fit_rc,col=rainbow(n.levelw),lwd=1,lty=3)
+axis(1,0:upper,pos=0)
+axis(1,upper/2,"Time (years)",tick=FALSE,padj=1.5)
+axis(2,seq(0,1,.1),las=2,cex=.9)
+# left trucated + right censored (ltrc):
+legend("top",ncol=2,col=c(rainbow(n.levelw),1,1),
+       lty=c(rep(1,n.levelw),1,3),
+       legend=c("No distant relapse","Distant Relapse",
+       "With delayed-entry","Ignoring delayed-entry"),
+       cex=.75)
+```
+
+We can note that
+
+* the survival curves of the two groups clearly take different directions (unlike in the Power Point presentation you showed me)
+* ignoring the delayed entry lead to biased (over-optimistic) survival probabilities 
+
+&nbsp;
+
+### Overall survival from distant recurrence
+
+Define the survival outcomes, in this case 
+
+* survival_rerc: **time from diagnosis (DDistMets) to death (DOC) from any cause, right-censored due to loss of follow up or alive at the time of the end of the study, missing for patients without relapse** 
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+# right censored only survival (rc):
+melanoma$survival_rerc = Surv(time  = (melanoma$DOC-melanoma$DDistMets)/365.25,
+                              event = as.numeric(melanoma$Dead))
+```
+
+Kaplan-meier survival curves as a function of location of the location of the relapse
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+par(mfrow=c(1,1),omi=c(0,0,.4,0),mar=c(4,4,3,1))
+relapseinbrain = melanoma$DRSite
+levelw   = levels(relapseinbrain)
+n.levelw = length(levelw)
+upper    = 5 # years
+    # check: OK 
+    # table(melanoma$DRSite,relapseinbrain,useNA="always") 
+fit_rerc   = survfit(survival_rerc~relapseinbrain,data = melanoma,
+                  type="kaplan-meier")
+# plot
+plot(fit_rerc, conf.int=FALSE, col=rainbow(n.levelw), 
+     xlab="",ylab ="Survival",axes=FALSE,
+     ylim=c(0,1.2),xlim=c(0,upper),
+     main="Overall Survival from relapse\nas a function of relapse location")
+axis(1,0:upper,pos=0)
+axis(1,upper/2,"Time (years)",tick=FALSE,padj=1.5)
+axis(2,seq(0,1,.1),las=2,cex=.9)
+# left trucated + right censored (ltrc):
+legend("top",ncol=1,col=c(rainbow(n.levelw)),
+       lty=c(rep(1,n.levelw)),
+       legend=levelw,
+       cex=.75)
+```
+
+We can note that 
+
+* the last observed death of patients of the strata *Brain only* and *Brain+Other* occured before the second year in both groups unlike in the power docuemnt you showed me. It is worth checking if we are analysing the same survival times,
+* we do not reach 0 for any group.
+
+&nbsp;
+
+# Gene selection for SKIN 
+
+In this section, we focus on the **vst** dataset. Our aim is to select a list of genes (negatively or positively) related to survival, defined as follows
+
+* survival outcome 1: **time to death (DOC) from any cause, possibly left-truncated due to delayed patient enrolment (DExc, strategy 1) and right-censored due to loss of follow up or alive at the time of the end of the study** 
+* survival outcome 2: **time to relaspe or death (DDistMets and DOC) from any cause, possibly left-truncated due to delayed patient enrolment (DExc, strategy 1) and right-censored due to loss of follow up or alive at the time of the end of the study** 
+
+
+For both outcomes of interest, we will follow the 2 following strategies:
+
+* the first one considers 
+    * fitting a *Cox model per gene controlling for different factors believed to be important*,
+    * using the *Benjamini and Hochberg FDR multiplicity correction* on the resulting p-value. 
+* the second one considers
+    * a lasso model selection.
+    
+
+&nbsp;
+    
+## Strategy 1
+
+&nbsp;
+
+### Survival outcome definitions
+
+For strategy 1, the survival outomes are considered are right censored and left truncted :
+
+* survival outcome 1: **time from diagnosis (DDiag) to death (DOC) from any cause, left-truncated due to delayed patient enrolment (DExc) and right-censored due to loss of follow up or alive at the time of the end of the study** 
+* survival outcome 2: **time from diagnosis (DDiag) to relaspe or death (DDistMets and DOC) from any cause, left-truncated due to delayed patient enrolment (DExc) and right-censored due to loss of follow up or alive at the time of the end of the study** 
+
+
+We first define the survival outcome for the **vst** dataset and **melanoma** dataset.  For strategy 1, the survival times are both left truncated and right-censored only, and time 0 corresponds to the date of diagnosis.
+
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+# survival outcome 1: "d" for death and "ltrc" for left truncated and right censored
+vst$survival_d_ltrc = Surv(time  = (vst$DOE-vst$DDiag)/365.25,
+                           time2 = (vst$DOC-vst$DDiag)/365.25,
+                           event = as.numeric(vst$Dead))
+melanoma$survival_d_ltrc = Surv(time  = (melanoma$DOE-melanoma$DDiag)/365.25,
+                           time2 = (melanoma$DOC-melanoma$DDiag)/365.25,
+                           event = as.numeric(melanoma$Dead))
+# survival outcome 2: "rd" for relapse or death, "ltrc" for left truncated and right censored
+vst$survival_rd_ltrc = Surv(time  = (vst$DOE-vst$DDiag)/365.25,
+                            time2 = (apply(cbind(vst$DOC,vst$DDistMets),1,min,na.rm=TRUE)-as.numeric(vst$DDiag))/365.25,
+                            event = as.numeric(vst$Dead|vst$EventMet=="Yes"))
+melanoma$survival_rd_ltrc = Surv(time  = (melanoma$DOE-melanoma$DDiag)/365.25,
+                                time2 = (apply(cbind(melanoma$DOC,melanoma$DDistMets),1,min,na.rm=TRUE)-
+                                         as.numeric(melanoma$DDiag))/365.25,
+                                event = as.numeric(melanoma$Dead|melanoma$EventMet=="Yes"))
+```
+```{r message = FALSE, warning = FALSE, include = FALSE}
+# check: seems good
+# cbind(vst$survival_rd_ltrc[,2]*365.25,vst$survival_rd_ltrc[,3],
+#      vst$DOC,vst$DDistMets,vst$DDiag,vst$EventMet,vst$Dead)[1:100,]
+```
+
+
+&nbsp;
+
+### Initial models
+
+In this section, we define which variables have a significant impact on survival given both definitions in the **melanoma** dataset (as it is larger). The idea is to control for a set of predictors in order to detect genes that have an effect on survival *on top* of these predictors. Genes having an effect on these predictors but **not** on top of them are not of interest.   
+
+&nbsp;
+
+#### Definition 1:
+
+```{r}
+dim(melanoma)
+dim(vst)
+
+head(melanoma)
+head(vst)
+```
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+# cox model
+fit1 = coxph(survival_d_ltrc~EventMet+Sex+Age+I(Age^2)+as.numeric(Nclass)+Stage+Site+Bres+Ulc+treatment+ECOG,
+             data=melanoma)
+anova(fit1)
+    # comment: EventMet is the most important variable, but is not of interest
+```
+
+```{r}
+fit2 = coxph(survival_d_ltrc~Sex+Age+I(Age^2)+as.numeric(Nclass)+Stage+Site+Bres+Ulc+ECOG,
+             data=melanoma)
+    # note that - Nclass appears more sig as ordinal
+    #           - Stage appears more sig as categorical
+    #           - ECOG is a good predictor
+    #           - treatment is not sig. but will be kept in the analysis 
+summary(fit2)
+anova(fit2)
+```
+
+```{r}
+fit3 = coxph(survival_d_ltrc~Sex+Age+as.numeric(Nclass)+as.character(Stage)+ECOG+treatment,
+             data=melanoma)
+anova(fit3)
+cox.zph(fit3)
+```
+
+For definition 1, our *initial* model will consider the variables *Sex* (binary), *Age* (continuous), *Nclass* (ordinal), *Stage* (categorical). Note that the proportional hazard assumption seems respected in the inital model.
+
+
+As a sensitivity analysis, we consider here a Cox proportional hazard model including  site  as a random effect model:
+
+```{r message = FALSE, warning = FALSE, include = TRUE}
+# now with a fancy model including sites:
+fit3b <- coxme(survival_d_ltrc~Sex+Age+as.numeric(Nclass)+as.character(Stage)+ECOG+treatment+ (1| Hospital),
+              data=melanoma)
+summary(fit3b)
+anova(fit3b)              
+```
+We can note that 
+
+* the random effect variance is really small compared to the fixed effect estimates of the main parameters,
+* the results do not change much at all.
+
+This leads us to deduce that **Hospital** is not an important predictor in this case. 
+
+
+&nbsp;
+
+#### Definition 2:
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+# cox model
+fit1 = coxph(survival_rd_ltrc~EventMet+Sex+Age+I(Age^2)+as.numeric(Nclass)+Stage+Site+Bres+Ulc+treatment+ECOG,
+             data=melanoma)
+anova(fit1)
+    # comment: EventMet is the most important variable, but is not of interest
+    
+fit2 = coxph(survival_rd_ltrc~Sex+Age+I(Age^2)+as.numeric(Nclass)+Stage+Site+Bres+Ulc+ECOG+treatment,
+             data=melanoma)
+    # note that - Nclass appears more sig as ordinal
+    #           - Stage appears more sig as categorical
+    #           - ECOG is a good predictor
+    #           - treatment is not sig. but will be kept in the analysis 
+    #           - Ulc is borderline at the 5% level (and will be dropped)
+anova(fit2)
+fit3 = coxph(survival_rd_ltrc~Sex+Age+as.numeric(Nclass)+as.character(Stage)+ECOG+treatment,
+             data=melanoma)
+anova(fit3)
+cox.zph(fit3)
+```
+
+For definition 2, the same model seems reasonnable.
+
+&nbsp;
+
+
+### Fit per gene
+
+We now itaratively fit a Cox model for each gene, correcting for the variables mentioned above and taking into account the left-truncation and right-censoring and use the Benjamini and Hochberg multiplicity correction
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+# 
+skin = vst[vst$tissue=="Skin",]
+id.gene$hr_d1_o1   = NA
+id.gene$pval_d1_o1 = NA
+id.gene$hr_d2_o1   = NA
+id.gene$pval_d2_o1 = NA
+for(gw in 1:n.gene){# gw=1
+    # definition 1
+    formulaw = as.formula(paste0("survival_d_ltrc~",id.gene$id[gw],
+                   "+Sex+Age+as.numeric(Nclass)+as.character(Stage)+ECOG+treatment"))
+    fit = coef(summary(coxph(formulaw,data=skin)))
+    id.gene[gw,c("hr_d1_o1","pval_d1_o1")] = fit[id.gene$id[gw],c("exp(coef)","Pr(>|z|)")]
+    # definition 2
+    formulaw = as.formula(paste0("survival_rd_ltrc~",id.gene$id[gw],
+                   "+Sex+Age+as.numeric(Nclass)+as.character(Stage)+ECOG+treatment"))
+    fit = coef(summary(coxph(formulaw,data=skin)))
+    id.gene[gw,c("hr_d2_o1","pval_d2_o1")] = fit[id.gene$id[gw],c("exp(coef)","Pr(>|z|)")]
+    #
+    #.cat(gw,n.gene)
+    }
+# FDR
+id.gene$adj.pval_d1_o1 = p.adjust(id.gene$pval_d1,method="BH")
+id.gene$adj.pval_d2_o1 = p.adjust(id.gene$pval_d2,method="BH")
+```
+
+&nbsp;
+
+### Quick look at the results
+
+We now plot the adjusted p-values and compare the HR to the adjusted p-value for each survival outcome
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+par(mfrow=c(2,2))
+# def 1
+hist(id.gene$adj.pval_d1_o1,nclass=500,col="light gray",
+     main="Time to death",ylab="Density",xlab="Adj. p-value")     
+abline(v=0.05,col="red",lty=3)     
+plot(log(id.gene$hr_d1_o1),id.gene$adj.pval_d1_o1,xlim=c(-3,3),ylim=c(0,0.25),
+     col=paste0(gray(0.5),25),pch=19,
+     main="Time to death",ylab="Adj. p-value",xlab="log Hazard ratio")     
+abline(h=0.05,col="red",lty=3)     
+abline(v=0,col="blue",lty=1)     
+# def 2
+hist(id.gene$adj.pval_d2_o1,nclass=500,col="light gray",
+     main="Time to relapse or death",ylab="Density",xlab="Adj. p-value")     
+abline(v=0.05,col="red",lty=3)     
+plot(log(id.gene$hr_d2),id.gene$adj.pval_d2_o1,xlim=c(-3,3),ylim=c(0,0.25),
+     col=paste0(gray(0.5),25),pch=19,
+     main="Time to relapse or death",ylab="Adj. p-value",xlab="log Hazard ratio")     
+abline(h=0.05,col="red",lty=3)     
+abline(v=0,col="blue",lty=1)     
+```
+
+Plots of both outcome show a similar pattern. There seems to be a small set of genes related to survival for the second servival outcome definition. When it is the case, the estimated (log) hazard ratios are usually negative (corresponding to an in survival).      
+
+We now define the number of genes significant per survival outcome and for both outcomes:
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+tbw = table(d1=id.gene$adj.pval_d1_o1<0.05,d2=id.gene$adj.pval_d2_o1<0.05,useNA="always")
+tbw
+```
+
+There are `r if(nrow(tbw)>2){sum(tbw["TRUE",])}else{0}` genes significantly related to survival outcome 1 and  `r if(ncol(tbw)>2){sum(tbw[,"TRUE"])}else{0}` significantly related to survival outcome 2.  
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+id.gene[ id.gene$adj.pval_d2_o1<0.05&!is.na(id.gene$adj.pval_d2_o1),]
+```
+
+Note that many estimated HR are sometimes moderately large: HR may be a way to screen geans further, if needed
+    
+&nbsp;
+    
+## Strategy 2
+
+&nbsp;
+
+### Survival outcome definitions
+
+We first define the survival outcome for the **vst** dataset and **melanoma** dataset. For strategy 2, the survival times are right-censored only and time 0 corresponds to the date of entry.
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+# survival outcome 1: "d" for death and "rc" right censored (from date of entry)
+vst$survival_d_rc = Surv(time  = (vst$DOC-vst$DOE)/365.25,
+                         event = as.numeric(vst$Dead))
+melanoma$survival_d_rc = Surv(time  = (melanoma$DOC-melanoma$DOE)/365.25,
+                              event = as.numeric(melanoma$Dead))
+# survival outcome 2: "rd" for relapse or death, "ltrc" for left truncated and right censored (from date of entry)
+vst$survival_rd_rc = Surv(time  = (apply(cbind(vst$DOC,vst$DDistMets),1,min,na.rm=TRUE)-as.numeric(vst$DOE))/365.25,
+                            event = as.numeric(vst$Dead|vst$EventMet=="Yes"))
+melanoma$survival_rd_rc = Surv(time  = (apply(cbind(melanoma$DOC,melanoma$DDistMets),1,min,na.rm=TRUE)-
+                                          as.numeric(melanoma$DOE))/365.25,
+                                 event = as.numeric(melanoma$Dead|melanoma$EventMet=="Yes"))
+```
+
+&nbsp;
+
+### LASSO
+
+#### Fit
+
+We first estimate the Cox model according to the LASSO estimator
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+# skin only
+skin = vst[vst$tissue=="Skin",]
+
+# define x matrix (remove missing observations)
+pos.x  = apply(!is.na(skin[,c("Sex","Age","Nclass","Stage","ECOG","treatment")]),1,all)
+x  = cbind(model.matrix(~Sex+Age+as.numeric(Nclass)+as.character(Stage)+ECOG+treatment,data=skin[pos.x,])[,-1],
+          skin[pos.x,id.gene$id])
+x  = as.matrix(x)          
+
+# fit for definition 1
+y1  = skin$survival_d_rc[pos.x] 
+fit1 = glmnet(x, y1, family = "cox")
+cvfit1 = cv.glmnet(x, y1, family = "cox")
+
+# fit for definition 2
+y2  = skin$survival_rd_rc[pos.x] 
+y2[y2[,1]==0,1] = 1e-2 # replace a problematic 0 by 1e-2
+fit2 = glmnet(x, y2, family = "cox")
+cvfit2 = cv.glmnet(x, y2, family = "cox")
+```
+
+We then define the list of significant genes according to both definitions.
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+id.gene$hr_d1_o1_s2 = NA
+id.gene$hr_d2_o1_s2 = NA
+
+# definition 1
+coef.min1   = coef(cvfit1, s = "lambda.min")
+active.gene1 = colnames(x)[which(coef.min1 != 0)]
+active.gene1 = active.gene1[sapply(active.gene1,function(x)substr(x,1,4)=="ENSG")]
+
+# definition 2
+coef.min2   = coef(cvfit2, s = "lambda.min")
+active.gene2 = colnames(x)[which(coef.min2 != 0)]
+active.gene2 = active.gene2[sapply(active.gene2,function(x)substr(x,1,4)=="ENSG")]
+
+# merge
+active.gene = unique(c(active.gene1,active.gene2))
+out = id.gene[!is.na(match(id.gene$id,active.gene)),c("pos","id")]
+rownames(out) = out$id
+out$logHR_d1 = NA
+out$logHR_d2 = NA
+out[active.gene1,"logHR_d1"] = id.gene[active.gene1,"hr_d1_o1_s2"] = coef.min1[active.gene1,]
+out[active.gene2,"logHR_d2"] = id.gene[active.gene2,"hr_d2_o1_s2"] = coef.min2[active.gene2,]
+as.data.frame(out)
+```
+
+We can note 
+
+* that the list of genes of interest is sensibly smaller with strategy 2 than with strategy 1. This may come
+    * from the multiplicity correction which are very different (BH is likely to be more liberal),
+    * the difference in survival definition (from DDiag versus DOE).
+* that the (log of the) HR estimates are way smaller with strategy 2 compared to strategy 1. This is due to the penalisation used in the LASSO estimator.
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+tbw = table(d1=!is.na(out$logHR_d1),d2=!is.na(out$logHR_d2),useNA="always")
+tbw
+```
+
+There are `r if(nrow(tbw)>2){sum(tbw["TRUE",])}else{0}` genes significantly related to survival outcome 1 and  `r if(ncol(tbw)>2){sum(tbw[,"TRUE"])}else{0}` significantly related to survival outcome 2.  
+
+&nbsp;
+
+## Joint results
+
+Both strategies are valid to select a list of genes.
+
+In the following table, we show the list of genes significant for any strategy and survival outcome definition for SKIN:
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+S2 = !is.na(id.gene$hr_d1_o1_s2)|!is.na(id.gene$hr_d2_o1_s2)
+S1 = (id.gene$adj.pval_d2_o1<0.05&!is.na(id.gene$adj.pval_d2_o1))|
+        (id.gene$adj.pval_d1_o1<0.05&!is.na(id.gene$adj.pval_d1_o1))
+tbw = table(S1,S2)
+tbw
+```
+
+We can note that `r tbw["TRUE","TRUE"]` out of the `r sum(tbw["TRUE","TRUE"])` genes selected by means of strategy 2 were also selected by strategy 1.
+
+The following table, saved under **results/tables/3-GeneList_Skin.csv**, shows the list of genes of potential interest for LYMPHNODES. 
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+csv = id.gene[S1|S2,c("pos","id","adj.pval_d1_o1","adj.pval_d2_o1","hr_d1_o1_s2","hr_d2_o1_s2")]
+csv$pos = 1:nrow(csv)
+write.csv(csv,file="results/tables/3-GeneList_Skin.csv")
+csv
+```
+
+
+&nbsp;
+
+# Gene selection for LYMPHNODES 
+
+Same selection analysis but for the second tissue type.     
+
+&nbsp;
+    
+## Strategy 1
+
+&nbsp;
+
+### Fit per gene
+
+We now itaratively fit a Cox model for each gene, correcting for the variables mentioned above and taking into account the left-truncation and right-censoring and use the chosen multiplicity correction
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+# 
+lymphnode = vst[vst$tissue!="Skin",]
+id.gene$hr_d1_o2   = NA
+id.gene$pval_d1_o2 = NA
+id.gene$hr_d2_o2   = NA
+id.gene$pval_d2_o2 = NA
+for(gw in 1:n.gene){# gw=1
+    # definition 1
+    formulaw = as.formula(paste0("survival_d_ltrc~",id.gene$id[gw],
+                   "+Sex+Age+as.numeric(Nclass)+as.character(Stage)+ECOG+treatment"))
+    fit = coef(summary(coxph(formulaw,data=lymphnode)))
+    id.gene[gw,c("hr_d1_o2","pval_d1_o2")] = fit[id.gene$id[gw],c("exp(coef)","Pr(>|z|)")]
+    # definition 2
+    formulaw = as.formula(paste0("survival_rd_ltrc~",id.gene$id[gw],
+                   "+Sex+Age+as.numeric(Nclass)+as.character(Stage)+ECOG+treatment"))
+    fit = coef(summary(coxph(formulaw,data=lymphnode)))
+    id.gene[gw,c("hr_d2_o2","pval_d2_o2")] = fit[id.gene$id[gw],c("exp(coef)","Pr(>|z|)")]
+    #
+    #.cat(gw,n.gene)
+    }
+# FDR
+id.gene$adj.pval_d1_o2 = p.adjust(id.gene$pval_d1_o2,method="BH")
+id.gene$adj.pval_d2_o2 = p.adjust(id.gene$pval_d2_o2,method="BH")
+```
+
+&nbsp;
+
+### Quick look at the results
+
+We now plot the adjusted p-values and compare the HR to the adjusted p-value for each survival outcome
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+par(mfrow=c(2,2))
+# def 1
+hist(id.gene$adj.pval_d1_o2,nclass=500,col="light gray",
+     main="Time to death",ylab="Density",xlab="Adj. p-value")     
+abline(v=0.05,col="red",lty=3)     
+plot(log(id.gene$hr_d1_o2),id.gene$adj.pval_d1_o2,xlim=c(-3,3),ylim=c(0,0.25),
+     col=paste0(gray(0.5),25),pch=19,
+     main="Time to death",ylab="Adj. p-value",xlab="log Hazard ratio")     
+abline(h=0.05,col="red",lty=3)     
+abline(v=0,col="blue",lty=1)     
+# def 2
+hist(id.gene$adj.pval_d2_o2,nclass=500,col="light gray",
+     main="Time to relapse or death",ylab="Density",xlab="Adj. p-value")     
+abline(v=0.05,col="red",lty=3)     
+plot(log(id.gene$hr_d2_o2),id.gene$adj.pval_d2_o2,xlim=c(-3,3),ylim=c(0,0.25),
+     col=paste0(gray(0.5),25),pch=19,
+     main="Time to relapse or death",ylab="Adj. p-value",xlab="log Hazard ratio")     
+abline(h=0.05,col="red",lty=3)     
+abline(v=0,col="blue",lty=1)     
+```
+
+Plots of both outcome show a similar pattern. The set of genes related to survival for both outcomes is way larger for this outcome than for skin. The imbalance between positive and negative (log) hazard ratio estimates is smaller than before.      
+
+We now define the number of genes significant per survival outcome and for both outcomes:
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+tbw = table(d1=id.gene$adj.pval_d1_o2<0.05,d2=id.gene$adj.pval_d2_o2<0.05,useNA="always")
+tbw
+```
+
+There are `r if(nrow(tbw)>2){sum(tbw["TRUE",])}else{0}` genes significantly related to survival outcome 1 and  `r if(ncol(tbw)>2){sum(tbw[,"TRUE"])}else{0}` significantly related to survival outcome 2.  
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+id.gene[id.gene$adj.pval_d1_o2<0.05&!is.na(id.gene$adj.pval_d1_o2) & 
+        id.gene$adj.pval_d2_o2<0.05&!is.na(id.gene$adj.pval_d2_o2),]
+```
+
+Note that many estimated HR are sometimes moderately large: HR may be a way to screen geans further.
+    
+&nbsp;
+    
+## Strategy 2
+
+&nbsp;
+
+### LASSO
+
+#### Fit
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+id.gene$hr_d1_o2_s2 = NA
+id.gene$hr_d2_o2_s2 = NA
+
+# skin only
+lymphnode = vst[vst$tissue!="Skin",]
+
+# define x matrix (remove missing observations)
+pos.x  = apply(!is.na(lymphnode[,c("Sex","Age","Nclass","Stage","ECOG","treatment")]),1,all)
+x  = cbind(model.matrix(~Sex+Age+as.numeric(Nclass)+as.character(Stage)+ECOG+treatment,data=lymphnode[pos.x,])[,-1],
+          lymphnode[pos.x,id.gene$id])
+x  = as.matrix(x)          
+
+# fit for definition 1
+y1  = lymphnode$survival_d_rc[pos.x] 
+fit1 = glmnet(x, y1, family = "cox")
+cvfit1 = cv.glmnet(x, y1, family = "cox")
+
+# fit for definition 2
+y2  = lymphnode$survival_rd_rc[pos.x] 
+y2[y2[,1]==0,1] = 1e-2 # replace a problematic 0 by 1e-2
+fit2 = glmnet(x, y2, family = "cox")
+cvfit2 = cv.glmnet(x, y2, family = "cox")
+```
+
+Define list of significant genes according to both definitions.
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+# definition 1
+coef.min1   = coef(cvfit1, s = "lambda.min")
+active.gene1 = colnames(x)[which(coef.min1 != 0)]
+active.gene1 = active.gene1[sapply(active.gene1,function(x)substr(x,1,4)=="ENSG")]
+
+# definition 2
+coef.min2   = coef(cvfit2, s = "lambda.min")
+active.gene2 = colnames(x)[which(coef.min2 != 0)]
+active.gene2 = active.gene2[sapply(active.gene2,function(x)substr(x,1,4)=="ENSG")]
+
+# merge
+active.gene = unique(c(active.gene1,active.gene2))
+out = id.gene[!is.na(match(id.gene$id,active.gene)),c("pos","id")]
+rownames(out) = out$id
+out$logHR_d1 = NA
+out$logHR_d2 = NA
+out[active.gene1,"logHR_d1"] = id.gene[active.gene1,"hr_d1_o2_s2"] = coef.min1[active.gene1,]
+out[active.gene2,"logHR_d2"] = id.gene[active.gene2,"hr_d2_o2_s2"] = coef.min2[active.gene2,]
+as.data.frame(out)
+```
+
+We can note 
+
+* that, again, the list of genes of interest is sensibly smaller with strategy 2 than with strategy 1. This may come
+    * from the multiplicity correction which are very different (BH is likely to be more liberal),
+    * the difference in survival definition (from DDiag versus DOE).
+* that the (log of the) HR estimates are way smaller with strategy 2 compared to strategy 1. This is due to the penalisation.
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+tbw = table(d1=!is.na(out$logHR_d1),d2=!is.na(out$logHR_d2),useNA="always")
+tbw
+```
+
+There are `r if(nrow(tbw)>2){sum(tbw["TRUE",])}else{0}` genes significantly related to survival outcome 1 and  `r sum(tbw[,"TRUE"])` significantly related to survival outcome 2.  
+
+&nbsp;
+
+## Joint results
+
+Both strategies are valid to select a list of genes.
+
+In the following table, we show the list of genes significant for any strategy and survival outcome definition for LYMPHNODES:
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+S2 = !is.na(id.gene$hr_d1_o2_s2)|!is.na(id.gene$hr_d2_o2_s2)
+S1 = (id.gene$adj.pval_d2_o2<0.05&!is.na(id.gene$adj.pval_d2_o2))|
+        (id.gene$adj.pval_d1_o2<0.05&!is.na(id.gene$adj.pval_d1_o2))
+tbw = table(S1,S2)
+tbw
+```
+
+We can note that all genes selected by strategy 2 were already selected by strategy 2.
+
+The following table, saved under **results/tables/3-GeneList_Lymphnode.csv**, shows the list of genes of potential interest for LYMPHNODES. 
+
+```{r message = FALSE, warning = FALSE, echo = TRUE}
+csv = id.gene[S1|S2,c("pos","id","adj.pval_d1_o2","adj.pval_d2_o2","hr_d1_o2_s2","hr_d2_o2_s2")]
+csv$pos = 1:nrow(csv)
+write.csv(csv,file="results/tables/3-GeneList_Lymphnode.csv")
+csv
+```
+

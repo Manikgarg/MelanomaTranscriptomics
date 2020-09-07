@@ -1,0 +1,1281 @@
+---
+title: "1 - Importation (v2.0)" 
+author: "D.-L. Couturier / R. Rabbie"
+date: '`r format(Sys.time(), "Last modified: %d %b %Y")`'
+output:
+  html_document:
+    theme: lumen 
+    highlight: tango
+    code_folding: show    
+    toc: true           
+    toc_depth: 3       
+    toc_float: true     
+    fig_width: 9
+    fig_height: 6
+    css: html/styles.css    
+    df_print: paged
+    number_sections: true
+---
+
+<!--- rmarkdown::render("~/cruk/redmine/5430/rmd/1-importation_descriptive_new.Rmd") --->
+<!--- rmarkdown::render("/Volumes/Files/cruk/redmine/5430/rmd/1-importation_descriptive_new.Rmd") --->
+<!--- setwd("~/cruk/redmine/5430/rmd/") --->
+<!--- setwd("/Volumes/Files/cruk/redmine/5430/rmd/")  --->
+
+<img src="html/logo.png" style="position:absolute;top:0px;right:0px;" width="300" />
+
+
+```{r setup, include=FALSE}
+
+rm(list=ls())
+
+# source R import functions
+source("source/functions.r")
+
+# set seed
+set.seed(1)
+
+```
+
+```{r message = FALSE}
+
+#   Input data files  :    data/20180724_Email/Samples_iRAP_SampleMapping_BRAF.csv
+#   
+#   Output data files :    results/rdata/0-avast.rd
+# 
+#   Required R packages :  -
+
+```
+
+
+
+&nbsp;
+
+
+# AVAST datset
+
+This dataset corresponds to a phase III clinical trial in which no drug effect was found. This dataset is used for a secondary analysis. In this section, we import the raw **avast** dataset, prepare the variables relevant for further analyses and perform a few descriptive analyses.
+
+## Import the raw avast dataset
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+# old version
+old = read.csv("data/20180724_Email/Roy-AVAST-Mclinical dataMerged_221217.csv",header=TRUE)
+old = old[order(old$TNO),]
+# new version, with added columns
+new = read.csv("data/20180928_Email/Roy-AVAST-Mclinical dataMerged_280917.csv",header=TRUE)
+new = new[order(new$TNO),]
+# coherence?
+apply(old[,colnames(old)] == new[,colnames(old)],2,all,na.rm=TRUE)
+apply(is.na(old[,colnames(old)]) == is.na( new[,colnames(old)]),
+     2,all,na.rm=TRUE)
+    # comments: some variables seems to have been updated
+    #           move forward with data1
+data0 = new
+#
+avast = data.frame(id=data0$TNO)
+
+# print sample
+head(data0)
+```
+```{r message = FALSE, warning = FALSE, include=FALSE} 
+n = nrow(data0)
+p = ncol(data0)
+```        
+The raw dataset has `r n` rows (patients) and `r p` columns (variables). 
+
+&nbsp;
+
+## Prepare relevant variables
+
+&nbsp;
+
+### Sex
+
+According to teh variable key, Sex is coded as follows
+
+* 1 = Male, 
+* 2 = Female
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+avast$Sex = factor(data0$Sex,levels=1:2,labels=c("Male","Female"))
+barplot(table(avast$Sex,useNA="always")/nrow(avast)*100,ylab="%")
+```
+```{r message = FALSE, warning = FALSE, include = FALSE}
+    # checks
+    table(data0$Sex,avast$Sex,useNA="always")
+```
+
+&nbsp;
+
+### Age in years at randomisation 
+
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+avast$Age = data0$age
+hist(avast$Age,col="light gray",ylab="Density",xlab="Age (years)",main="")
+```
+
+
+
+&nbsp;
+
+### N-classification at randomisation
+
+This variable measures the presence of lymphnodes. It is coded as follows
+
+* 1 = N0
+* 2 = N1a
+* 3 = N1b
+* 4 = N2a
+* 5 = N2b
+* 6 = N2c
+* 7 = N3
+
+We defined 7- and 2-level factors excluding NAs as well as 8- and 3-level factors including NAs in a dedicated level.  
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+avast$Nclass   = ordered(data0$Nclass,levels=1:7,
+                            labels=c("N0","N1a","N1b","N2a","N2b","N2c","N3"))
+avast$NclassNA = factor(data0$Nclass,levels=c(1:7,98),
+                            labels=c("N0","N1a","N1b","N2a","N2b","N2c","N3","NA"))
+avast$Nclass_binary   = factor(rep(c(0,1),c(1,6))[as.numeric(avast$Nclass)],
+                                  levels=0:1,labels=c("Negative","Positive"))
+avast$Nclass_binaryNA = factor(rep(c(0,1,2),c(1,6,1))[as.numeric(avast$NclassNA)],
+                                  levels=0:2,labels=c("Negative","Positive","NA"))
+barplot(table(avast$NclassNA)/nrow(avast)*100,ylab="%")                                  
+    # comment: warnings correspond to NAs
+```
+```{r message = FALSE, warning = FALSE, include = FALSE}
+    # checks
+    table(data0$Nclass,avast$Nclass,useNA="always")
+    table(data0$Nclass,avast$NclassNA,useNA="always")
+    table(data0$Nclass,avast$Nclass_binary,useNA="always")
+    table(data0$Nclass,avast$Nclass_binaryNA,useNA="always")
+    # COMMENT:
+    # - 98 as missing code (not documented)    
+```
+
+&nbsp;
+
+### Stage of avast at randomisation
+
+Staging is coded as follows
+
+* 1 = IIB
+* 2 = IIC
+* 3 = IIIA
+* 4 = IIIB
+* 5 = IIIC
+
+We defined the following 5- and 2-level factors
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+avast$Stage   = ordered(data0$Stage,levels=1:5,labels=c("IIB","IIC","IIIA","IIIB","IIIC"))
+avast$Stage_binary = factor(rep(c(1,2),c(2,3))[as.numeric(avast$Stage)],
+                               levels=1:2,labels=c("II","III"))
+barplot(table(avast$Stage,useNA="always")/nrow(avast)*100,ylab="%")                                  
+```
+```{r message = FALSE, warning = FALSE, include = FALSE}
+    # checks
+    table(data0$Stage,avast$Stage,useNA="always")
+    table(data0$Stage,avast$Stage_binary,useNA="always")
+    # COMMENT:
+    # - no missing
+```
+
+&nbsp;
+
+### Site of primary melanoma 
+
+Site was coded as follows
+
+* 1 = Head and neck
+* 2 = Upper limbs
+* 3 = Lower lims
+* 4 = Trunk
+* 97 = Other
+* 99 = Unknown
+
+We defined the following factors (which differs by their way to handle missing data) 
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+avast$Site    = factor(data0$Site,levels=c(1:4,97),
+                          labels=c("Head and neck","Upper limbs","Lower lims","Trunk","Other"))
+avast$SiteNA1 = factor(data0$Site,levels=c(1:4,97,99),
+                          labels=c("Head and neck","Upper limbs","Lower lims","Trunk","Other","NA"))
+avast$SiteNA2 = factor(rep(c(1:5),c(1,1,1,1,100))[data0$Site],
+                          levels=1:5,labels=c("Head and neck","Upper limbs","Lower lims","Trunk","Other+NA"))
+barplot(table(avast$Site,useNA="always")/nrow(avast)*100,ylab="%")                                  
+```
+```{r message = FALSE, warning = FALSE, include = FALSE}
+    # checks
+    table(data0$Site,avast$Site,useNA="always")
+    table(data0$Site,avast$SiteNA1,useNA="always")
+    table(data0$Site,avast$SiteNA2,useNA="always")
+    # COMMENT:
+    # - 4.4% of missing
+```
+
+&nbsp;
+
+### Breslow thickness of primary tumour 
+
+Breslow thickness, also simply referred to as *thickness*,  was coded as follows
+
+* 1 = <= 2.0 mm
+* 2 = >2-4mm
+* 3 = >4.0mm
+* 99 = Unknown
+
+We defined the following factors (which differs by their way to handle missing data) 
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+avast$Bres   = ordered(data0$Bres,levels=c(1:3),labels=c("<= 2.0 mm",">2-4mm",">4.0mm"))
+avast$BresNA = factor(data0$Bres,levels=c(1:3,99),labels=c("<= 2.0 mm",">2-4mm",">4.0mm","NA"))
+barplot(table(avast$Bres,useNA="always")/nrow(avast)*100,ylab="%")                                  
+```
+```{r message = FALSE, warning = FALSE, include = FALSE}
+    # checks
+    table(data0$Bres,avast$Bres,useNA="always")
+    table(data0$Bres,avast$BresNA,useNA="always")
+    # COMMENT:
+    # - 7.5% of missing
+```
+
+
+&nbsp;
+
+### Ulceration of primary tumour
+
+Ulceration was coded as follows
+
+* 1 = Present
+* 2 = Absent
+* 99 = Unknown
+
+We defined the following factors (which differs by their way to handle missing data) 
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+avast$Ulc   = factor(data0$Ulc,levels=c(1:2),labels=c("Present","Absent"))
+avast$UlcNA = factor(data0$Ulc,levels=c(1:2,99),labels=c("Present","Absent","NA"))
+barplot(table(avast$Ulc,useNA="always")/nrow(avast)*100,ylab="%")                                  
+```
+```{r message = FALSE, warning = FALSE, include = FALSE}
+    # checks
+    table(data0$Ulc,avast$Ulc,useNA="always")
+    table(data0$Ulc,avast$UlcNA,useNA="always")
+    # COMMENT:
+    # - 7.5% of missing
+```
+
+ 
+
+&nbsp;
+
+###  Presence of distant relapse
+
+This variable was coded as follows
+
+* 1 = No
+* 2 = Yes
+
+We defined the following factor
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+avast$EventMet = factor(data0$EventMet,levels=c(1:2),labels=c("No","Yes"))
+barplot(table(avast$EventMet,useNA="always")/nrow(avast)*100,ylab="%")                                  
+```
+```{r message = FALSE, warning = FALSE, include = FALSE}
+    # checks
+    table(data0$EventMet,avast$EventMet,useNA="always")
+    # COMMENT:
+    # - no missing
+```
+
+&nbsp;
+
+### BRAF genotype by pyrosequencing    
+
+This variable was coded as follows
+
+* V600E = Hotspot mutation in V600E
+* WT    = Wild-type
+ 
+Note that NA were coded as NA as well as ''. We defined the following factor
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+if(any(colnames(data0)=="BRAF")){
+    avast$BRAF = factor(data0$BRAF,levels=c("V600E","WT"))
+    barplot(table(avast$BRAF,useNA="always")/nrow(avast)*100,ylab="%")
+    }
+```
+```{r message = FALSE, warning = FALSE, include = FALSE}
+if(any(colnames(data0)=="BRAF")){
+    # checks
+    table(data0$BRAF,avast$BRAF,useNA="always")
+    table(avast$BRAF,avast$EventMet,useNA="always")
+    # COMMENT:
+    # - all missing for patients without no relapse
+    }
+```
+
+&nbsp;
+
+### NRAS genotype by pyrosequencing    
+
+This variable was coded as follows
+
+* Mutant = Hotspot mutation in V600E
+* WT     = Wild-type
+ 
+Note that NA were coded as NA as well as ''. We defined the following factor
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+if(any(colnames(data0)=="NRAS_binary")){
+    avast$NRAS = factor(data0$NRAS_binary,levels=c("Mutant","WT"))
+    barplot(table(avast$NRAS,useNA="always")/nrow(avast)*100,ylab="%") 
+    }
+```
+```{r message = FALSE, warning = FALSE, include = FALSE}
+if(any(colnames(data0)=="NRAS")){
+    # checks
+    table(data0$NRAS_binary,avast$NRAS,useNA="always")
+    table(avast$NRAS,avast$EventMet,useNA="always")
+    # COMMENT:
+    # - massive percentage of missing, not relapse dependent 
+    }
+```
+ 
+&nbsp;
+
+
+### Treatment group 
+
+The **AVAST** dataset was originally collected to test the effect of a treatment on melanoma. As it may be useful to control for the treatment in secondary analyses even if the treatment was not found to have a significant effect in the primary analysis. This variable was coded as follows  
+
+* 1 = Bevacizumab
+* 2 = Observation
+ 
+We defined the following factor
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+if(any(colnames(data0)=="TRT")){
+    avast$treatment = factor(data0$TRT,levels=1:2,label=c("Bevacizumab","Observation"))
+    barplot(table(avast$treatment,useNA="always")/nrow(avast)*100,ylab="%") 
+    }
+```
+The barplot suggests that the primary study considered a balanced randomised design.
+
+```{r message = FALSE, warning = FALSE, include = FALSE}
+if(any(colnames(data0)=="TRT")){
+    # checks
+    table(data0$TRT,avast$treatment,useNA="always")
+    # comment: no NAs, as expected
+    }
+```
+
+&nbsp;
+
+### ECOG Performance at baseline
+
+The  Eastern Cooperative Oncology Group performance score is a crude ordinal evaluation of the patient's health at a given time. It has 6 levels, going from 0-Asymptomatic to 4-Bedbound and 5-Dead. Only patients with levels 0 and 1 were considered in the primary study. This variable was coded as follows   
+
+* 1 = 0 (Asymptomatic)
+* 2 = 1 (Symptomatic but completely ambulatory)
+ 
+Note that 2 NAs were coded as '.'. We defined the following factor
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+if(any(colnames(data0)=="ECOG")){
+    avast$ECOG = factor(data0$ECOG,levels=1:2,label=c("Asymptomatic","Symptomatic"))
+    barplot(table(avast$ECOG,useNA="always")/nrow(avast)*100,ylab="%") 
+    }
+```
+Most patients were asymptomatic.
+
+```{r message = FALSE, warning = FALSE, include = FALSE}
+if(any(colnames(data0)=="TRT")){
+    # checks
+    table(data0$ECOG,avast$ECOG,useNA="always")
+    # comment: no NAs, as expected
+    }
+```
+
+&nbsp;
+
+### Hospital
+
+Data were collected in different sites. We defined the following factor identifying the sites here
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+if(any(colnames(data0)=="ECOG")){
+    avast$Hospital = factor(data0$HospID)
+    barplot(table(avast$Hospital,useNA="always")/nrow(avast)*100,ylab="%") 
+    }
+```
+```{r message = FALSE, warning = FALSE, include = FALSE}
+if(any(colnames(data0)=="TRT")){
+    # checks
+    table(data0$HospID,avast$Hospital,useNA="always")
+    # comment: no NAs, as expected
+    }
+```
+
+
+&nbsp;
+
+
+###  Location of distant metastasis 
+
+These binary variables where all coded as follows (not that a patient could have metastasis in more than one location)
+
+* 1 = No
+* 2 = Yes
+
+We defined the following factor
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+avast$DRBrain = factor(data0$DRBrain,levels=c(1:2),labels=c("No","Yes"))
+avast$DRSoftTissue = factor(data0$DRSoftTissue,levels=c(1:2),labels=c("No","Yes"))
+avast$DRLung = factor(data0$DRLung,levels=c(1:2),labels=c("No","Yes"))
+avast$DRLiver = factor(data0$DRLiver,levels=c(1:2),labels=c("No","Yes"))
+avast$DRBone = factor(data0$DRBone,levels=c(1:2),labels=c("No","Yes"))
+avast$DROth = factor(data0$DROth,levels=c(1:2),labels=c("No","Yes"))
+par(mfrow=c(2,3))
+barplot(table(avast$DRBrain,useNA="always")/nrow(avast)*100,ylab="%",main="Brain")                                  
+barplot(table(avast$DRSoftTissue,useNA="always")/nrow(avast)*100,ylab="%",main="Soft tissue")                                  
+barplot(table(avast$DRLung,useNA="always")/nrow(avast)*100,ylab="%",main="Lung")                                  
+barplot(table(avast$DRLiver,useNA="always")/nrow(avast)*100,ylab="%",main="Liver")                                  
+barplot(table(avast$DRBone,useNA="always")/nrow(avast)*100,ylab="%",main="Bone")                                    
+barplot(table(avast$DROth,useNA="always")/nrow(avast)*100,ylab="%",main="Other")                                  
+
+```
+```{r message = FALSE, warning = FALSE, include = FALSE}
+    # checks
+    table(data0$DRBrain,avast$DRBrain,useNA="always")
+    table(data0$DRSoftTissue,avast$DRSoftTissue,useNA="always")
+    table(data0$DRLung,avast$DRLung,useNA="always")
+    table(data0$DRLiver,avast$DRLiver,useNA="always")
+    table(data0$DRBone,avast$DRBone,useNA="always")
+    table(data0$DROth,avast$DROth,useNA="always")
+    # COMMENT:
+    # - 753 missing (56%) = no relapse ie avast$EventMet==1
+```
+
+Note that missing data in these factors corresponds to patients who had no distant relapse:
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+    table(avast$DRBrain,avast$EventMet)
+    table(avast$DRSoftTissue,avast$EventMet)
+    table(avast$DRLung,avast$EventMet)
+    table(avast$DRLiver,avast$EventMet)
+    table(avast$DRBone,avast$EventMet)
+    table(avast$DROth,avast$EventMet)
+```
+
+&nbsp;
+
+###  Details of the distant metastasis in other site
+
+This variable was coded as follows
+
+* 1 = Brain metastasis only
+* 2 = Brain metastasis plus other distant metastatic sites
+* 3 = Other distant metastatic sites excluding brain
+
+We defined the following factor
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+avast$DRSite = factor(data0$DRSite,levels=c(1:3),labels=c("Brain only","Brain+Other","Other only"))
+par(mfrow=c(1,1))
+barplot(table(avast$DRSite,useNA="always")/nrow(avast)*100,ylab="%", main="")                                  
+
+```
+```{r message = FALSE, warning = FALSE, include = FALSE}
+    # checks
+    table(data0$DRSite,avast$DRSite,useNA="always")
+    # COMMENT:
+    # - 753 missing (56%) = no relapse ie avast$EventMet==1
+```
+
+Note that this factor just expresses the information of the *Location of distant metastasis* dichotomous variables in a different way, focusing on the presence of metastasis in the brain
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+    table(avast$DRBrain=="Yes"&apply(avast[,c("DRSoftTissue","DRLung","DRLiver","DRBone","DROth")]!="Yes",1,all))
+    table(avast$DRBrain=="Yes"&apply(avast[,c("DRSoftTissue","DRLung","DRLiver","DRBone","DROth")]=="Yes",1,any))
+    table(avast$DRBrain!="Yes"&apply(avast[,c("DRSoftTissue","DRLung","DRLiver","DRBone","DROth")]=="Yes",1,any))
+```
+
+
+&nbsp;
+
+###  Survival event status
+
+According to the key, this variable was coded as follows
+
+* 1 = Alive
+* 2 = Dead
+
+but according to the data, the coding more likely is (TO CHECK)
+
+* 1 = Alive
+* 0 = Dead
+
+We defined the following logical variable 
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+avast$Dead = as.logical(data0$Dead==1)#,levels=c(1:0),labels=c("Alive","Dead"))
+table(avast$Dead,avast$EventMet,useNA="always")
+barplot(table(avast$Dead,useNA="always")/nrow(avast)*100,ylab="%", main="Alive ?")                                  
+```
+```{r message = FALSE, warning = FALSE, include = FALSE}
+    # checks
+    table(data0$Dead,avast$Dead,useNA="always")
+    # COMMENT:
+    # - no missing
+```
+
+
+
+&nbsp;
+
+###  Survival times
+
+The dataset contains the following time related variables, all expressed in months
+
+* SurvPrim = Survival from primary diagnosis to death (months)
+* SurvMets(m) = Survival from stage 4 diagnosis death (months)
+* TimePrimMet.m = Survival from primary diagnosis to stage 4 relapse (months)
+* AgeMets = Age at diagnosis of stage 4 relapse (months)
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+avast$SurvPrimary = data0$SurvPrim
+avast$SurvStageIV = data0$SurvMets.m.
+#avast$TimePrimaryToStageIV = as.numeric(data0$TimePrimMet.m)
+#avast$AgeStageIV = data0$AgeMets
+    # COMMENT: ignore these variables (email of Roy 26 September 2018 at 4:28 pm)
+pairs(avast[,c("SurvPrimary","SurvStageIV")])#,"TimePrimaryToStageIV","AgeStageIV")])
+```
+
+
+&nbsp;
+
+###  Dates
+
+The dataset contains the following dates
+
+* DOE = Date of trial entry
+* DDiag = Date of primary melanoma diagnosis
+* DExc = Date of surgical removal of primary melanoma
+* Dlymphcomp = Date of completion of lymph node dissection
+* DlastSurg = Date of latest surgry for melanoma prior to trial entry (for primary or recurrence)
+* DDistMets = Date of first distant metastatic recurrence
+* DOC = Date last seen alive for those alive or the date of death for those that have died
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+avast$DOE        = as.Date(data0$DOE,format = "%d-%b-%y")
+avast$DDiag      = as.Date(data0$DDiag,format = "%d-%b-%y")
+avast$DExc       = as.Date(data0$DExc,format = "%d-%b-%y")
+avast$Dlymphcomp = as.Date(data0$Dlymphcomp,format = "%d-%b-%y")
+avast$DlastSurg  = as.Date(data0$DlastSurg,format = "%d-%b-%y")
+avast$DDistMets  = as.Date(data0$DDistMets,format = "%d/%m/%Y")
+avast$DOC = avast$DOE
+avast$DOC[!is.na(avast$DDistMets)] =  as.Date(data0$DOC[!is.na(avast$DDistMets)],format = "%d/%m/%Y")
+avast$DOC[ is.na(avast$DDistMets)] =  as.Date(data0$DOC[ is.na(avast$DDistMets)],format = "%d-%b-%y")
+```
+
+
+
+&nbsp;
+
+## Save datsets
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+# rdata files
+avast = avast[order(avast$EventMet),]
+save(avast,file=paste0("results/rdata/1-avast.rd"))
+```
+```{r message = FALSE, warning = FALSE, include=FALSE} 
+n = nrow(avast)
+p = ncol(avast)
+```        
+The imported **avast** dataset has `r n` rows (patients) and `r p` columns. 
+
+&nbsp;
+
+## Further descriptive analyses
+
+In this section, we propose a few further descriptive analyses
+
+&nbsp;
+
+### Missing data
+
+The next plot shows the missing data pattern in the imported **otta** dataset for each variables (y-axis) and patients ordered by sites (x-axis). Non-missing data appear in grey. Missing data are colour coded by site.  The percentage of non-missing data per variable is indicated. 
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+par(mfrow=c(1,1),mar=c(2,4,1.5,8))
+image(is.na((avast[1:nrow(avast),ncol(avast):1])),col=c("light gray","red"),axes=FALSE)
+axis(1,c(0,1),c(1,nrow(avast)),las=1)
+axis(4,seq(0,1,length=ncol(avast)),
+     colnames(avast)[ncol(avast):1],las=2,cex.axis=.75)
+axis(2,seq(0,1,length=ncol(avast)),
+     paste0(format(round(apply(!is.na(avast),2,mean)*100,2)),"%")[ncol(avast):1],las=2,cex.axis=.75)
+axis(3,0.5,"Global missing data",tick=FALSE,padj=1)   
+```
+
+The variables *AgeStageIV* and *TimePrimaryToStageIV* (possibly wrongly defined) do not appear in the imported dataset.
+
+&nbsp;
+
+# AVAST related VST normalised datset with demographics and clinical data 
+
+&nbsp;
+
+## Clean
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+# avast_vst:
+data2 = read.csv("data/20180921_Email/vstTransformedDataForSkinAndLN_EventMetYesNo.tsv",header=TRUE,sep="\t")
+n1    = ncol(data2)
+p1    = nrow(data2)
+# pivot and clinical + pathological
+data3 = read.csv("data/20180920_Email/Samples_iRAP_SampleMapping_BRAF.csv",header=TRUE)
+rownames(data3) = data3[,"RNA.Seq.Sample"]
+data3_tno = split(data3,data3$TNO)
+n2 = length(data3_tno)
+N2 = nrow(data3) 
+barplot(table(sapply(data3_tno,nrow)),main="Number of observations per patient in\n'Samples_iRAP_SampleMapping_BRAF'") 
+```
+```{r message = FALSE, warning = FALSE, include=FALSE}
+# check 1: 'RNA.Seq.Sample' is the key between VST and the avast dataset 
+table(!is.na(match(colnames(data2),rownames(data3))))
+    # comment: all samples (ie col) of VST have a row in iRAP
+table(!is.na(match(rownames(data3),colnames(data2))))
+n3 = table(!is.na(match(rownames(data3),colnames(data2))))[1]
+    # comment: all samples (ie row) of iRAP do not have a match in VST
+
+# check 2: information of data3 per 'TNO' is identical for all clinical obs
+sapply(data3_tno[sapply(data3_tno,nrow)>1],function(x){
+    apply(x,2,function(y){all(y==y[1])})
+    })
+    # comment: yes, infomation per patient is duplicated 
+    #          except for RNA.Seq.Sample, PR_ID, SampleID, Tissue_Type and Tissue_Code
+```
+
+The **VST** dataset (data2) has the expression of `r p1` genes for `r n1` samples. 
+The **iRAP** dataset (data3) has information on `r N2` samples corresponding to `r n2` patients. 
+All samples of the **VST** dataset have a match in the **iRAP** one. However, `r n3` samples of the **iRAP** dataset have no match in the **VST**. These samples can be discarded from data3:
+
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+data3b = data3[!is.na(match(rownames(data3),colnames(data2))),]
+data3b_tno = split(data3b,data3b$TNO)
+n2 = length(data3b_tno)
+N2 = nrow(data3) 
+tbw = table(table(data3b$TNO))
+tbw
+```
+
+Now only `r tbw[2]` and `r tbw[3]` patients respectively have two or more samples. **As these samples induce a within-participant dependence** (that could be dealt with a mixed Cox model at the expense of the left-truncation issue),
+**we suggest here to randomly select one sample per patients**. This will lead us to keep `r n2` samples out of `r N2`:
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+# select samples of iRAP to get independent data
+set.seed(13) # from rr13@sanger
+data3b = data3b[sapply(split(1:nrow(data3b),data3b$TNO),function(x){x[order(runif(length(x)))][1]}),]
+all(table(data3b$TNO==1))
+# keep only VST data that correspond to a sample in iRAP
+data2 = data2[,!is.na(match(colnames(data2),rownames(data3b)))]
+    # colnames(data2)[match(colnames(data2),rownames(data3))] == rownames(data3)
+```
+
+## Merge
+
+Here we create the **avast_vst** dataset merging the information of **VST** (data2) **avast**. We also create **id.gene_avast**, a dataset showing the list of genes available in **vst**.
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+# gene:
+n.gene_avast = nrow(data2)
+id.gene_avast = data.frame(pos=1:n.gene_avast, id=rownames(data2), stringsAsFactors=FALSE)
+
+# avast_vst
+avast_vst = cbind(avast[as.character(data3b$TNO),c("id","Sex","Age","Nclass","Stage","Site",
+                     "Bres","Ulc","EventMet","BRAF","NRAS","treatment","ECOG","Hospital","Dead",
+                     "DOE","DDiag","DExc","Dlymphcomp","DlastSurg","DDistMets","DOC")],
+            sample = rownames(data3b),
+            tissue = factor(data3b$Tissue_Code,levels=1:2,labels=c("Skin","Lymph node")))
+rownames(avast_vst) = avast_vst$sample            
+avast_vst = cbind(avast_vst,t(data2[,rownames(avast_vst)]))
+```
+```{r message = FALSE, warning = FALSE, include=FALSE}
+# checks:
+table(avast_vst$Sex,data3b$Sex)
+table(avast_vst$Age,data3b$age)
+table(avast_vst$Site,data3b$Site)
+table(avast_vst$Bres,data3b$Bres)
+table(avast_vst$EventMet,data3b$EventMet)
+    # comment: all good 
+```
+
+
+## Save
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+# rdata files
+save(avast_vst,n.gene_avast,id.gene_avast,file=paste0("results/rdata/1-avast_vst.rd"))
+```
+```{r message = FALSE, warning = FALSE, include=FALSE} 
+n = nrow(avast_vst)
+p = ncol(avast_vst)
+```        
+The imported **avast_vst** dataset has `r n` rows/patients/samples and `r p` columns, among them `r n.gene_avast` are related to gene expression 
+
+
+# Raw expression counts
+
+The raw expression counts are available at https://www.ebi.ac.uk/~nf/Melanoma/genes.raw.htseq2.tsv and have been save under data/20181116_RawCounts/20181116_RawCounts.txt. 
+
+DEseq2 requires 2 elements to run
+
+* the raw counts, a matrix of size (m x n) where m and n respectively denote the number of genes and sample size
+* a data frame of size (n x c) indicating, for each sample/column of the raw counts (in the same order) a list of charcteristics to be used in the differential expression analysis  
+
+In the following sections, we present code defining the R objects **rna_counts** and **rna_characteristics**.
+
+## counts
+
+We first import them (as **data4**), and then compare their IDs to the ones available in **data3**, which contains the pivot between the patient IDs of **avast** and the RNAseq IDs.
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+# path to raw counts: 
+data4 = read.csv("data/20181119_Email/RNASeqNonNormalised.txt",header=TRUE,sep="\t",
+                 row.names=1)
+n4 = ncol(data4)
+p4 = nrow(data4)
+# check if all samples available in data4 are available in data3
+id.nomatch = colnames(data4)[is.na(match(colnames(data4),rownames(data3)))]
+n.nomatch  = length(id.nomatch)
+```
+The dataset of the **Raw expression counts** (data4) has the expression of `r p4` 'genes' for `r n4` samples. 
+`r n.nomatch` of them, `r id.nomatch`, has a RNAseq ID without match in the **avast** dataset. It will be discarded:
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+avast_rna_counts = data4[,colnames(data4)!=id.nomatch]
+```
+```{r message = FALSE, warning = FALSE, include=FALSE}
+    table(!is.na(match(colnames(avast_rna_counts),rownames(data3))))
+    # COMMENT:
+    # - all RNAseq samples have a match in data3 (which is the pivot with avast, 
+    #   ie, the participants characteristics as imported above) 
+```
+
+As in the case of the VST dataset, some RNASeq sample of the raw counts correspond to the same patients, inducing a within-patient dependence. Also, the VST dataset has a restricted list of genes, which matches the one of the iRAP DE analysis. Therefore, out of coherence, we will keep the same samples and genes as VST.
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+avast_rna_counts = avast_rna_counts[colnames(avast_vst)[25:ncol(avast_vst)],rownames(avast_vst)]
+    # check:
+    all(table(data3[colnames(avast_rna_counts),"TNO"])==1)
+```
+
+## samples
+
+We finally store the characteritics of the patients of the **avast_rna_counts** dataset in the object **avast_rna_characteristics**.
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+avast_rna_characteristics = avast[as.character(data3[colnames(avast_rna_counts),"TNO"]),]
+rownames(avast_rna_characteristics) = colnames(avast_rna_counts)
+# add column 'tissue' available in data3
+posw = match(rownames(avast_rna_characteristics),(rownames(data3)))
+avast_rna_characteristics$tissue = NA
+avast_rna_characteristics[!is.na(posw),"tissue"] = data3$Tissue_Code[posw]
+avast_rna_characteristics$tissue = factor(avast_rna_characteristics$tissue,levels=1:2,labels=c("Skin","Lymph node"))
+```
+
+## Save
+```{r message = FALSE, warning = FALSE, include=TRUE}
+# rdata files
+save(avast_rna_counts,avast_rna_characteristics,file=paste0("results/rdata/1-avast_rna_counts.rd"))
+```
+```{r message = FALSE, warning = FALSE, include=FALSE} 
+n = nrow(avast_rna_counts)
+p = ncol(avast_rna_counts)
+```        
+The imported **avast_rna_counts** dataset has `r p` columns/patients/samples and `r n` genes.
+
+
+
+
+
+# TCGA survival datset
+
+New survival dataset from a retrospective study (ie, not a prospective one)
+
+## Import the raw TCGA dataset
+
+Here we import the **TCGA** dataset with patient and sample type information as well as corresponding ids (**id.patient_tcga** for patients, **id.type_tcga** for sample types)
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+# new version
+new = read.csv("data/20190531_GoogleDrive/TCGA_clinical_deails_Survival_Data.csv",
+               header=TRUE,stringsAsFactors=FALSE)
+data0 = new[order(new$sampleID),]
+rownames(data0) = data0$sampleID
+#
+tcga = data.frame(pos=1:nrow(data0),id=as.character(data0$sampleID),
+                  patient=substr(data0$sampleID,9,12),
+                  type=substr(data0$sampleID,14,15),
+                  stringsAsFactors=FALSE,
+                  row.names=data0$sampleID)
+# patient
+id(table(tcga$patient),"patient_tcga")
+
+# type
+id(table(tcga$type),"type_tcga")
+
+```
+
+```{r message = FALSE, warning = FALSE, include=FALSE} 
+n  = nrow(data0)
+p  = ncol(data0)
+n2 = sum(table(id.patient_tcga$n)[-1]) 
+```        
+
+The full dataset has `r n` rows (samples) of `r n.type_tcga` types from `r n.patient_tcga` patients (only `r n2` patients had more than 1 sample), and `r p` columns (variables). 
+
+To achieve independence between samples/observations, a sample per patient will be randomly selected. To minimise the decrease in sample size, we will perform this selection according to the presence/absence of TVS data related to a sample of a patient in next Section.  
+
+
+
+&nbsp;
+
+## Prepare relevant variables
+
+&nbsp;
+
+### Sex
+
+According to the variable key, Gender is coded as follows
+
+* MALE, 
+* FEMALE
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+tcga$Sex = factor(data0$gender,levels=c("MALE","FEMALE"),labels=c("Male","Female"))
+barplot(table(tcga$Sex,useNA="always")/nrow(tcga)*100,ylab="%")
+```
+```{r message = FALSE, warning = FALSE, include = FALSE}
+    # checks
+    table(data0$gender,tcga$Sex,useNA="always")
+```
+The barplot shows an unbalanced number of observations per Sex in the data.
+
+&nbsp;
+
+### Age at diagnosis
+
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+tcga$Age = data0$age_at_initial_pathologic_diagnosis
+hist(tcga$Age,col="light gray",nclass=50,
+     ylab="Density",xlab="Age (years)",main="")
+mean.Age = round(mean(tcga$Age),1)      
+```
+
+The distribution of *Age at diagnosis* looks approximately symmetrical with mean `r mean.Age`. The age range at diagnosis is rather large: from `r min(tcga$Age)` to `r max(tcga$Age)`. 
+
+To allow a more meaningful interpretation of the coefficients of the Cox model, we create a centered version of this variable defined so that an increament of 1 corresponds to a decade change in age at diagnosis
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+tcga$Age.scaled = (tcga$Age-mean(tcga$Age))/10
+hist(tcga$Age.scaled,col="light gray",nclass=50,
+     ylab="Density",xlab="Age (years)",main="")
+```
+
+&nbsp;
+
+### Clark-level 
+
+This variable is coded as follows
+
+* I
+* II
+* III
+* IV
+* V
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+tcga$Clark   = ordered(data0$melanoma_clark_level_value,levels=c("I","II","III","IV","V"))
+temp = as.character(tcga$Clark)
+temp[is.na(temp)] = "NA"
+tcga$ClarkNA = factor(temp,levels=c("I","II","III","IV","V","NA"))
+```
+```{r message = FALSE, warning = FALSE, include = FALSE}
+    # checks
+    table(data0$melanoma_clark_level_value,tcga$Clark,useNA="always")
+    table(data0$melanoma_clark_level_value,tcga$ClarkNA,useNA="always")
+    # COMMENT:
+    # - 98 as missing code (not documented)    
+```
+
+This variable has `r round(mean(is.na(tcga$Clark))*100)` percents missing data.
+
+&nbsp;
+
+### Stage of melanoma at diagnosis
+
+Staging is a 14-level ordinal factor that we imported as a 4-level ordinal factor: 
+
+* I (stages 0, IA, IB)
+* II (stages II, IIA, IIB, IIC)
+* III (stages III, IIIA, IIIB, IIIC)
+* IV (stage IV)
+
+Note that *I or II NOS* were considered as missing:
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+temp = gsub("Stage ","",data0$pathologic_stage)
+temp = gsub("A","",temp)
+temp = gsub("B","",temp)
+temp = gsub("C","",temp)
+temp[temp=="0"] = "I"
+temp[temp=="I or II NOS"] = NA
+tcga$Stage  = ordered(temp,levels=c("I","II","III","IV"),labels=c("I","II","III","IV"))
+tcga$Stage_binary = factor(rep(c(1,2),each=2)[as.numeric(tcga$Stage)],
+                               levels=1:2,labels=c("I-II","III-IV"))
+barplot(table(tcga$Stage,useNA="always")/nrow(tcga)*100,ylab="%")                                  
+```
+```{r message = FALSE, warning = FALSE, include = FALSE}
+    # checks
+    table(data0$pathologic_stage,tcga$Stage,useNA="always")
+    table(data0$pathologic_stage,tcga$Stage_binary,useNA="always")
+    # COMMENT:
+    # - 10% missing missing
+```
+
+This variable has `r round(mean(is.na(tcga$Stage))*100)` percents missing data and is related to Clark ratings (Spearman's rho = `r round(cor(na.omit(cbind(tcga$Stage,tcga$Clark)),method="spearman")[2,1],2)`).
+
+
+&nbsp;
+
+### Breslow thickness of primary tumour 
+
+The raw Breslow thicknesses are available. We imported it as continuous and ordinal (with the same levels as the ones available in the *avast* dataset, ie
+
+* 1 = <= 2.0 mm
+* 2 = >2-4mm
+* 3 = >4.0mm
+* 99 = Unknown
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+tcga$Bres.raw  = data0$breslow_depth_value
+tcga$Bres = NA
+tcga$Bres[!is.na(tcga$Bres.raw)] = 1
+tcga$Bres[tcga$Bres.raw>2] = 2
+tcga$Bres[tcga$Bres.raw>4] = 3
+tcga$Bres = ordered(tcga$Bres,levels=c(1:3),labels=c("<= 2.0 mm",">2-4mm",">4.0mm"))
+temp = as.character(tcga$Bres)
+temp[is.na(temp)] = "NA"
+tcga$BresNA = factor(temp,levels=c("<= 2.0 mm",">2-4mm",">4.0mm","NA"),labels=c("<= 2.0 mm",">2-4mm",">4.0mm","NA"))
+barplot(table(tcga$Bres,useNA="always")/nrow(tcga)*100,ylab="%")                                  
+```
+```{r message = FALSE, warning = FALSE, include = FALSE}
+    # checks
+    plot(data0$breslow_depth_value,tcga$Bres)
+    table(tcga$Bres,tcga$BresNA,useNA="always")
+    # COMMENT:
+    # - 7.5% of missing
+```
+
+Again, to allow a more meaningful interpretation of the coefficients of the Cox model, we create a centered and scaled version of this variable:
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+tcga$Bres.scaled  = log1p(tcga$Bres.raw)-mean(log1p(tcga$Bres.raw),na.rm=TRUE)/
+                    sqrt(var(log1p(tcga$Bres.raw),na.rm=TRUE))
+plot(tcga$Bres.raw,tcga$Bres.scaled,
+     col=as.numeric(tcga$Bres))
+```
+
+
+&nbsp;
+
+### Ulceration of primary tumour
+
+Ulceration was coded as follows
+
+* NO
+* YES
+* NA
+
+We defined the following factors (which differs by their way to handle missing data) 
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+tcga$Ulc   = factor(data0$melanoma_ulceration_indicator,levels=c("YES","NO"),labels=c("Present","Absent"))
+temp = as.character(tcga$Ulc)
+temp[is.na(temp)] = "NA"
+tcga$UlcNA = factor(temp,levels=c("Present","Absent","NA"),labels=c("Present","Absent","NA"))
+barplot(table(tcga$Ulc,useNA="always")/nrow(tcga)*100,ylab="%")                                  
+```
+```{r message = FALSE, warning = FALSE, include = FALSE}
+    # checks
+    table(data0$melanoma_ulceration_indicator,tcga$Ulc,useNA="always")
+    table(data0$melanoma_ulceration_indicator,tcga$UlcNA,useNA="always")
+    # COMMENT:
+    # - 7.5% of missing
+```
+
+This variable has `r round(mean(is.na(tcga$Ulc))*100)` percents missing data.
+ 
+
+&nbsp;
+
+
+###  Mitotic count of primary
+
+Skewed to the right continous predictor
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+tcga$Mitotic  = data0$malignant_neoplasm_mitotic_count_rate
+hist(tcga$Mitotic,col="light gray",nclass=50)                                  
+```
+```{r message = FALSE, warning = FALSE, include = FALSE}
+    # checks
+    table(data0$malignant_neoplasm_mitotic_count_rate,tcga$Mitotic,useNA="always")
+    # COMMENT:
+    # - no missing
+```
+
+This variable has `r round(mean(is.na(tcga$Mitotic))*100)` percents missing data.
+
+&nbsp;
+
+###  Status dead/alive
+
+According to the key, this variable was coded as follows
+
+* 0 = Alive
+* 1 = Dead
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+tcga$Dead = as.logical(data0$X_OS_IND==1)#,levels=c(1:0),labels=c("Alive","Dead"))
+barplot(table(tcga$Dead,useNA="always")/nrow(tcga)*100,ylab="%", main="Dead ?")                                  
+```
+```{r message = FALSE, warning = FALSE, include = FALSE}
+    # checks
+    table(data0$X_OS_IND,tcga$Dead,useNA="always")
+    # COMMENT:
+    # - no missing
+```
+
+This variable has no missing data.
+
+&nbsp;
+
+###  Status relapse/no-relapse
+
+According to the key, this variable was coded as follows
+
+* 0 = No relapse
+* 1 = relapse
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+tcga$Relapse = as.logical(data0$X_RFS_IND==1)#,levels=c(1:0),labels=c("Alive","Dead"))
+barplot(table(tcga$Relapse,useNA="always")/nrow(tcga)*100,ylab="%", main="Relapse ?")                                  
+```
+```{r message = FALSE, warning = FALSE, include = FALSE}
+    # checks
+    table(data0$X_RFS_IND,tcga$Relapse,useNA="always")
+    table(tcga$Dead,tcga$Relapse,useNA="always")
+    # COMMENT:
+    # - no missing
+```
+
+This variable has `r round(mean(is.na(tcga$Relapse))*100)` percents missing data.
+
+
+&nbsp;
+
+###  Time-related variables
+
+The dataset contains the following time related variables, all expressed in days
+
+* X_OS = Overall survival in days
+* X_RFS = Relapse-free survival in days
+
+```{r message = FALSE, warning = FALSE, echo = TRUE} 
+tcga$TimeToDeath = data0$X_OS
+tcga$TimeToRelapse = data0$X_RFS
+plot(tcga$TimeToRelapse,tcga$TimeToDeath,
+     col=.an(tcga$Dead)+1,pch=.an(tcga$Relapse)+1,
+     ylab="Time to death",
+     xlab="Time to relapse"
+     )     
+abline(0,1,col="blue")     
+legend("topleft",
+       pch=15,col=1:2,
+       legend=c("Alive","Dead"),
+       box.lwd=NA)
+legend("bottomright",
+       pch=1:2,
+       legend=c("No Relapse","Relapse"),
+       box.lwd=NA)
+```
+
+The Figure shows the relationship between time of relapse (x-axis) and time of death (y-axis). As expected, time of death often occured after time of relapse but in many cases both times sometimes match suggesting:
+
+* (i) that the time to relapse (arbitrarily) was set to the time of death for some patients who died,
+* (ii) that the time of relapse matches the last follow-up time for the patients who are still alive.
+
+Due to (i), the analysis of the right-censored time to death variable is preferred to the one of the right-censored time to relapse variable. 
+
+
+&nbsp;
+
+&nbsp;
+
+## Save datsets
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+# rdata files
+tcga = tcga[order(tcga$Dead,tcga$TimeToDeath),]
+tcga$pos = 1:nrow(tcga)
+save(tcga,id.patient_tcga,id.type_tcga,n.patient_tcga,n.type_tcga,file=paste0("results/rdata/1-tcga.rd"))
+```
+```{r message = FALSE, warning = FALSE, include=FALSE} 
+n = nrow(tcga)
+p = ncol(tcga)
+```        
+The imported **tcga** dataset has `r n` rows (patients) and `r p` columns. 
+
+&nbsp;
+
+
+## Further descriptive analyses
+
+In this section, we propose a few further descriptive analyses
+
+&nbsp;
+
+### Missing data
+
+The next plot shows the missing data pattern in the imported **tcga** dataset for each variables (y-axis) and patients ordered by sites (x-axis). Non-missing data appear in grey. Missing data are colour coded by site.  The percentage of non-missing data per variable is indicated. 
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+par(mfrow=c(1,1),mar=c(2,4,1.5,8))
+image(is.na((tcga[1:nrow(tcga),ncol(tcga):1])),col=c("light gray","red"),axes=FALSE)
+axis(1,c(0,1),c(1,nrow(tcga)),las=1)
+axis(4,seq(0,1,length=ncol(tcga)),
+     colnames(tcga)[ncol(tcga):1],las=2,cex.axis=.75)
+axis(2,seq(0,1,length=ncol(tcga)),
+     paste0(format(round(apply(!is.na(tcga),2,mean)*100,2)),"%")[ncol(tcga):1],las=2,cex.axis=.75)
+axis(3,0.5,"Global missing data",tick=FALSE,padj=1)   
+```
+
+&nbsp;
+
+
+
+
+# TCGA related VST normalised datset
+
+&nbsp;
+
+## Import and clean
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+# tcga_vst:
+data5 = read.csv("data/20190531_GoogleDrive/VST_TCGA_RNASeqRawCounts_SurvivalData.tsv",header=TRUE,sep="\t")
+n1    = ncol(data5)
+p1    = nrow(data5)
+```
+
+We create **id.gene_tcga**, a dataset showing the list of genes available in **tcga_vst**.
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+# gene:
+n.gene_tcga  = nrow(data5)
+id.gene_tcga = data.frame(pos=1:n.gene_tcga,
+                          id=row.names(data5),
+                          name=as.character(data5$gene_name),
+                          stringsAsFactors=FALSE) 
+rownames(id.gene_tcga) = id.gene_tcga$id                          
+```
+
+Here, we re-organise **data5** and **tcga** datasets so that only independent observations (1 per patient) are selected and the  final sample size is maximised:  
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+# remove gene name
+data5 = data5[,colnames(data5)!="gene_name"]
+# change colnames of data5 to match rownames of tcga
+colnames(data5) =  gsub("[.]","-",colnames(data5))
+
+# check 1: match of tsv with tcga ids
+table(!is.na(match(colnames(data5),rownames(tcga))))
+colnames(data5)[is.na(match(colnames(data5),rownames(tcga)))]
+    
+# check2: all tcga ids have a match in tsv
+tcga$tsv = TRUE
+tcga[rownames(tcga)[is.na(match(rownames(tcga),colnames(data5)))],"tsv"] = FALSE
+table(!is.na(match(rownames(tcga),colnames(data5))))
+
+# selection: available one when 1 sample per patient available in tsv 
+# and random one for patients with both obs available:
+idw  = sapply(split(tcga,tcga$patient),function(x){
+    # temp=split(tcga,tcga$patient)
+    # x=temp[sapply(temp,nrow)==2][[1]]
+    if(nrow(x)==1){x$id
+    }else{
+    if(sum(x$tsv)==1){
+    x$id[x$tsv]
+    }else{
+    r = runif(nrow(x))
+    x$id[which(r==min(r))]
+    }}
+    })
+idw = idw[!is.na(match(idw,colnames(data5)))]   
+tcga = tcga[idw,]
+data5 = data5[,idw]
+```
+```{r message = FALSE, warning = FALSE, include=FALSE} 
+# checks 1 and 2
+all(table(!is.na(match(colnames(data5),rownames(tcga)))))
+all(table(!is.na(match(rownames(tcga),colnames(data5)))))
+n = nrow(tcga)
+p = ncol(tcga)
+n1 = nrow(data5)
+p1 = ncol(data5)
+```        
+
+Thus, the final **tcga** dataset (with independent observations) has `r n` rows (samples/patients) and `r p` columns (variables) and the corresponding **VST** dataset (data5) has the expression of `r p1` genes for the same samples. 
+
+
+## Merge
+
+Here we create the **tcga_vst** dataset merging the information of **VST** (data5) **tcga**.
+```{r message = FALSE, warning = FALSE, include=TRUE}
+# tcga_vst
+tcga_vst = cbind(tcga[idw,],t(data5[,idw]))
+```
+```{r message = FALSE, warning = FALSE, include=FALSE}
+# checks:
+table(tcga_vst$Sex,tcga$Sex)
+table(tcga_vst$Dead,tcga$Dead)
+    # comment: all good 
+```
+
+
+## Save
+
+```{r message = FALSE, warning = FALSE, include=TRUE}
+# rdata files
+save(tcga_vst,n.gene_tcga,id.gene_tcga,tcga,file=paste0("results/rdata/1-tcga_vst.rd"))
+```
+```{r message = FALSE, warning = FALSE, include=FALSE} 
+n = nrow(tcga_vst)
+p = ncol(tcga_vst)
+```        
+The imported **tcga_vst** dataset has `r n` rows/patients/samples and `r p` columns, among them `r n.gene_tcga` are related to gene expression 
+
+
+
+
