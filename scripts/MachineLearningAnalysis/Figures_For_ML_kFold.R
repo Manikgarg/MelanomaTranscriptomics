@@ -1,7 +1,9 @@
 library("ggplot2")
+library("openxlsx")
+
 theme_set(ggpubr::theme_pubr(base_size=10, legend='bottom', x.text.angle = 45))
 
-filePath = paste0("./Desktop/Melanoma/kFold_1000repeats/")
+filePath = paste0("~/Desktop/Melanoma/kFold_1000repeats/")
 pattern = "resultTrain_"
 tempFiles = list.files(path = filePath, pattern = pattern, recursive = TRUE)
 currentResults = data.frame()
@@ -20,7 +22,7 @@ for (temp in tempFiles) {
   }
 }
 
-filePath = paste0("./Desktop/Melanoma/loocv/")
+filePath = paste0("~/Desktop/Melanoma/loocv/")
 pattern = "resultTrain_"
 tempFiles = list.files(path = filePath, pattern = pattern, recursive = TRUE)
 #currentResults = data.frame()
@@ -50,7 +52,9 @@ currentResults$Signature_f <- factor(currentResults$Signature_f,
                                      levels = c("Cam_121+\nClinical Covariates", 
                                                 "Cam_121", "Clinical Covariates", 
                                                 "LMC_150", "DecisionDx-\nMelanoma"))
-  
+
+write.xlsx(currentResults, "~/Desktop/Melanoma/githubUpload/Source_Data/Figs_3A_S7_S8_And_SupplementaryTable_S3A.xlsx", colNames = TRUE, rowNames = TRUE, append = TRUE)
+
 #library("ggplot2")
 d1<- ggplot(currentResults, aes(x = ClassifierName, y = ROC, color = CV))+
   geom_point(size = 2, position=position_dodge(width=0.5))+
@@ -63,7 +67,7 @@ d1<- ggplot(currentResults, aes(x = ClassifierName, y = ROC, color = CV))+
   #theme(axis.text.x = element_text(angle=90, hjust=1))+
   facet_grid(.~Signature_f, scales = "free_x", drop = TRUE)
   #ggpubr::theme_pubr(base_size=10, legend='bottom')
-ggsave("./Desktop/Melanoma/kFold_Vs_LOOCV.png", device = "png", 
+ggsave("~/Desktop/Melanoma/kFold_Vs_LOOCV.png", device = "png", 
        width = 16, height = 10, units = "cm")
 
 d0<- ggplot(currentResults[currentResults$CV == "10-Fold CV", ], 
@@ -78,7 +82,7 @@ d0<- ggplot(currentResults[currentResults$CV == "10-Fold CV", ],
   ylab("AUROC")+
   #theme(axis.text.x = element_text(angle=90, hjust=1))+
   facet_grid(.~Signature_f, scales = "free_x", drop = TRUE)
-ggsave("./Desktop/Melanoma/kFold.png", device = "png", 
+ggsave("~/Desktop/Melanoma/kFold.png", device = "png", 
        width = 16, height = 10, units = "cm")
 
 #library("ggplot2")
@@ -106,7 +110,7 @@ d02 <- ggplot(currentResults[currentResults$CV == "10-Fold CV", ],
   ylab("Sensitivity")+
   #theme(axis.text.x = element_text(angle=90, hjust=1))+
   facet_grid(.~Signature_f, scales = "free_x", drop = TRUE)
-ggsave("./Desktop/Melanoma/kFoldSens.png", device = "png", 
+ggsave("~/Desktop/Melanoma/kFoldSens.png", device = "png", 
        width = 16, height = 10, units = "cm")
 
 #library("ggplot2")
@@ -134,7 +138,7 @@ d03 <- ggplot(currentResults[currentResults$CV == "10-Fold CV", ],
   ylab("Specificity")+
   #theme(axis.text.x = element_text(angle=90, hjust=1))+
   facet_grid(.~Signature_f, scales = "free_x", drop = TRUE)
-ggsave("./Desktop/Melanoma/kFoldSpec.png", device = "png", 
+ggsave("~/Desktop/Melanoma/kFoldSpec.png", device = "png", 
        width = 16, height = 10, units = "cm")
 
 mainResults = data.frame()
@@ -167,9 +171,9 @@ library("pROC")
 predTest = data.frame()
 for (i in unique(mainResults$Signature)) {
   if(mainResults$CV[mainResults$Signature == i] == "LOOCV"){
-    filePath = paste0("./Desktop/Melanoma/loocv/")
+    filePath = paste0("~/Desktop/Melanoma/loocv/")
   }else{
-    filePath = paste0("./Desktop/Melanoma/kFold_1000repeats/")
+    filePath = paste0("~/Desktop/Melanoma/kFold_1000repeats/")
   }
   temp = extractTestPred(i, filePath, mainResults)
   temp$roc = round(auc(roc(temp$obs, temp$Yes)), 4)
@@ -182,6 +186,8 @@ for (i in unique(mainResults$Signature)) {
 #predTest$Signature_ROC = as.factor(predTest$Signature_ROC)
 predTest$Signature_ROC <- factor(predTest$Signature_ROC, 
                                      levels = unique(predTest$Signature_ROC[order(predTest$roc, decreasing = TRUE)]))
+
+write.xlsx(predTest, "~/Desktop/Melanoma/githubUpload/Source_Data/Figs_3B_3C_3D_And_SupplementaryTable_S3B.xlsx", colNames = TRUE, rowNames = TRUE, append = TRUE)
 
 #library("ggplot2")
 library("plotROC")
@@ -201,16 +207,16 @@ g <- ggplot(predTest,
 
 g
 
-ggsave("./Desktop/Melanoma/MLLnValidation.png", device = "png", units='cm', width = 8)
+ggsave("~/Desktop/Melanoma/MLLnValidation.png", device = "png", units='cm', width = 8)
 
 ggpubr::ggarrange(d1, g, ncol = 1, nrow = 2, 
                   labels = c("A", "B"),
                   width = c(2, 1))
-ggsave("./Desktop/Melanoma/MLkFold.pdf", device = "pdf", units='cm', width = 16)
+ggsave("~/Desktop/Melanoma/MLkFold.pdf", device = "pdf", units='cm', width = 16)
 
 ggpubr::ggarrange(d2, d3, ncol = 1, nrow = 2, 
                   labels = c("A", "B"), align = "v", common.legend = TRUE)
-ggsave("./Desktop/Melanoma/MLkFoldSensSpec.pdf", device = "pdf", units='cm', 
+ggsave("~/Desktop/Melanoma/MLkFoldSensSpec.pdf", device = "pdf", units='cm', 
        width = 16)
 
 #g + annotate("text", x=c(0.75, 0.75, 0.75, 0.75), y=c(0.20, 0.25, 0.30, 0.35), label=paste("AUC =", round((calc_auc(g))$AUC, 4)))
@@ -234,7 +240,7 @@ for (i in unique(predTest$Signature[predTest$Signature!="Clinical Covariates"]))
   }
 }
 
-write.table(pVals, "./Desktop/Melanoma/pValues.tsv", sep = "\t", col.names = TRUE, 
+write.table(pVals, "~/Desktop/Melanoma/pValues.tsv", sep = "\t", col.names = TRUE, 
             row.names = FALSE, quote = FALSE)
 
 
@@ -334,7 +340,7 @@ for(metric in c("ROC", "Sens", "Spec")){
   tStatistics = rbind(tStatistics, tStatistic)
 } 
 
-write.table(tStatistics, "./Desktop/Melanoma/trainKFoldPVal.tsv", sep = "\t", col.names = TRUE, row.names = TRUE, quote = FALSE)
+write.table(tStatistics, "~/Desktop/Melanoma/trainKFoldPVal.tsv", sep = "\t", col.names = TRUE, row.names = TRUE, quote = FALSE)
 
 
 # Feature Importance Score ------------------------------------------------
@@ -342,6 +348,9 @@ write.table(tStatistics, "./Desktop/Melanoma/trainKFoldPVal.tsv", sep = "\t", co
 library(ggplot2)
 load("~/Desktop/Melanoma/kFold_1000repeats/trainedModel_Signature_overlap_DASLarray_genes_FALSE_rf_.Rdata")
 fic = data.frame(resultsWithTrainedModels[["model"]][["finalModel"]][["importance"]])
+
+write.xlsx(fic, "~/Desktop/Melanoma/githubUpload/Source_Data/Fig_S10.xlsx", colNames = TRUE, rowNames = TRUE, append = TRUE)
+
 fic$Gene = as.factor(rownames(fic))
 
 fic$Gene.f = factor(fic$Gene, levels = levels(fic$Gene))
@@ -383,5 +392,5 @@ p <- ggplot(fic, aes(x= Gene, y=MeanDecreaseGini)) +
 #scale_fill_manual(values=c("#999999", "#E69F00", "#56B4E9"))
 #stat_summary(fun.data="mean_sdl", 
 #               geom="crossbar", width=0.2 )
-ggsave("./Desktop/Melanoma/Cam_121_Cov_FeatureImportanceScore.png", device = "png", width=16)
+ggsave("~/Desktop/Melanoma/Cam_121_Cov_FeatureImportanceScore.png", device = "png", width=16)
 
