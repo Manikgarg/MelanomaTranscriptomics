@@ -19,131 +19,131 @@ library(openxlsx)
 ```
 
 ```{r}
-jt = read.xlsx("~/Downloads/AVAST-M_primaries_TILCountData_JT.xlsx")
-ns = read.xlsx("~/Downloads/Scores_NS_V2.xlsx")
+#jt = read.xlsx("~/Downloads/AVAST-M_primaries_TILCountData_JT.xlsx")
+#ns = read.xlsx("~/Downloads/Scores_NS_V2.xlsx")
 jt_ns_sm_scores = read.table("~/Downloads/JT_NS_SM_Combined.txt", sep = "\t", header = TRUE, quote = "")
 ```
 
 ```{r}
-nsScores = ns[!(is.na(ns$ABSENT)) | !(is.na(ns$`NON-BRISK.LymP.in.tumour`)) | !(is.na(ns$BRISK)), 
-              c("Cases", "ABSENT", "NON-BRISK.LymP.in.tumour", "BRISK", "TIL.GRADE", "Additional.comments", "Density", "Distribution")]
-colnames(nsScores) = paste("NS", colnames(nsScores), sep = "_")
+# nsScores = ns[!(is.na(ns$ABSENT)) | !(is.na(ns$`NON-BRISK.LymP.in.tumour`)) | !(is.na(ns$BRISK)), 
+#               c("Cases", "ABSENT", "NON-BRISK.LymP.in.tumour", "BRISK", "TIL.GRADE", "Additional.comments", "Density", "Distribution")]
+# colnames(nsScores) = paste("NS", colnames(nsScores), sep = "_")
 ```
 
 ```{r}
-jtScores = jt[!(is.na(jt$Clark_score)), 
-              c("RNASeq_sampleID", "Scanned_filename", "Comments_scan", "Clark_score", "TIL_grade", "Comments", "Density", "Distribution", "Scanning_batch")]
-colnames(jtScores) = paste("JT", colnames(jtScores), sep = "_")
+# jtScores = jt[!(is.na(jt$Clark_score)), 
+#               c("RNASeq_sampleID", "Scanned_filename", "Comments_scan", "Clark_score", "TIL_grade", "Comments", "Density", "Distribution", "Scanning_batch")]
+# colnames(jtScores) = paste("JT", colnames(jtScores), sep = "_")
 ```
 
 ```{r}
-combinedScores = merge(jtScores, y = nsScores, by.x = "JT_Scanned_filename",
-                       by.y = "NS_Cases")
+# combinedScores = merge(jtScores, y = nsScores, by.x = "JT_Scanned_filename",
+#                        by.y = "NS_Cases")
 ```
 
 Remove scans labelled as having poor quality by JT and NS
 ```{r}
-combinedScoresSub = combinedScores[-grep("v poor", combinedScores$JT_Comments, ignore.case = TRUE), ]
-combinedScoresSub = combinedScoresSub[-grep("too poor", combinedScoresSub$JT_Comments, ignore.case = TRUE), ]
-combinedScoresSub = combinedScoresSub[-grep("too faded", combinedScoresSub$JT_Comments, ignore.case = TRUE), ]
-combinedScoresSub = combinedScoresSub[-grep("Dermal deposit", combinedScoresSub$NS_Additional.comments, ignore.case = FALSE), ]
+# combinedScoresSub = combinedScores[-grep("v poor", combinedScores$JT_Comments, ignore.case = TRUE), ]
+# combinedScoresSub = combinedScoresSub[-grep("too poor", combinedScoresSub$JT_Comments, ignore.case = TRUE), ]
+# combinedScoresSub = combinedScoresSub[-grep("too faded", combinedScoresSub$JT_Comments, ignore.case = TRUE), ]
+# combinedScoresSub = combinedScoresSub[-grep("Dermal deposit", combinedScoresSub$NS_Additional.comments, ignore.case = FALSE), ]
 ```
 
 ```{r}
-combinedScoresSub$NS_Clark_score = combinedScoresSub$JT_Clark_score
-combinedScoresSub$NS_Clark_score[combinedScoresSub$NS_ABSENT == "x"] = 0
-combinedScoresSub$NS_Clark_score[combinedScoresSub$`NS_NON-BRISK.LymP.in.tumour` == "x"] = 1
-combinedScoresSub$NS_Clark_score[combinedScoresSub$NS_BRISK == "x"] = 2
+# combinedScoresSub$NS_Clark_score = combinedScoresSub$JT_Clark_score
+# combinedScoresSub$NS_Clark_score[combinedScoresSub$NS_ABSENT == "x"] = 0
+# combinedScoresSub$NS_Clark_score[combinedScoresSub$`NS_NON-BRISK.LymP.in.tumour` == "x"] = 1
+# combinedScoresSub$NS_Clark_score[combinedScoresSub$NS_BRISK == "x"] = 2
 ```
 
 ```{r}
-rearrangeColumns = combinedScoresSub[, c("JT_RNASeq_sampleID", 
-                                         "JT_Scanned_filename",
-                                         "JT_Scanning_batch",
-                                         "JT_Clark_score",
-                                         "NS_Clark_score",
-                                         "NS_ABSENT", 
-                                         "NS_NON-BRISK.LymP.in.tumour", 
-                                         "NS_BRISK", 
-                                         "JT_Density",
-                                         "NS_Density",
-                                         "JT_Distribution",
-                                         "NS_Distribution",
-                                         "JT_TIL_grade",
-                                         "NS_TIL.GRADE",
-                                         "JT_Comments_scan",
-                                         "JT_Comments",
-                                         "NS_Additional.comments")]
+# rearrangeColumns = combinedScoresSub[, c("JT_RNASeq_sampleID", 
+#                                          "JT_Scanned_filename",
+#                                          "JT_Scanning_batch",
+#                                          "JT_Clark_score",
+#                                          "NS_Clark_score",
+#                                          "NS_ABSENT", 
+#                                          "NS_NON-BRISK.LymP.in.tumour", 
+#                                          "NS_BRISK", 
+#                                          "JT_Density",
+#                                          "NS_Density",
+#                                          "JT_Distribution",
+#                                          "NS_Distribution",
+#                                          "JT_TIL_grade",
+#                                          "NS_TIL.GRADE",
+#                                          "JT_Comments_scan",
+#                                          "JT_Comments",
+#                                          "NS_Additional.comments")]
 ```
 
 ```{r}
-write.xlsx(rearrangeColumns, file="./combined_scores_V2.xlsx")
+#write.xlsx(rearrangeColumns, file="./combined_scores_V2.xlsx")
 ```
 
 ## Plotting TIL counts for AVAST-M data
 
 ```{r}
-tilCount = jtScores[, c("JT_RNASeq_sampleID", "JT_Clark_score", "JT_TIL_grade")]
-cam_121 = data.frame("Cam_121" = reducedGeneSignature, "Sample" = names(reducedGeneSignature))
-tilCount = merge(tilCount, cam_121, by.x = "JT_RNASeq_sampleID", by.y = "Sample")
+# tilCount = jtScores[, c("JT_RNASeq_sampleID", "JT_Clark_score", "JT_TIL_grade")]
+# cam_121 = data.frame("Cam_121" = reducedGeneSignature, "Sample" = names(reducedGeneSignature))
+# tilCount = merge(tilCount, cam_121, by.x = "JT_RNASeq_sampleID", by.y = "Sample")
 ```
 
 ```{r}
-my_comparisons <- list( c("absent", "nonbrisk"), c("nonbrisk", "brisk"), c("absent", "brisk") )
-tilCount$JT_Clark_score <- as.factor(tilCount$JT_Clark_score)
-levels(tilCount$JT_Clark_score) <- c("absent", "nonbrisk", "brisk")
-#tilCount$JT_Clark_score <- factor(tilCount$JT_Clark_score, levels = c("absent", "nonbrisk", "brisk"))
-ggplot(tilCount, aes(x=JT_Clark_score, y=Cam_121, fill = JT_Clark_score))+
-  geom_violin()+
-  scale_fill_brewer(type="qual", palette = "Dark2", name = "Clark score")+
-  xlab("Clark score")+
-  ylab("Weighted Cam_121 score (standardized)")+
-  geom_hline(yintercept = -0.38, color = "grey", linetype = "longdash")+
-  ggpubr::stat_compare_means(comparisons = my_comparisons, method = "t.test")+ # Add pairwise comparisons p-value
-  ggpubr::stat_compare_means(label.y = 6, method = "anova")     # Add global p-value
-ggsave("Cam_121_ClarkScore_AVAST-M.png", device = "png", width = 8, units = "cm")
+# my_comparisons <- list( c("absent", "nonbrisk"), c("nonbrisk", "brisk"), c("absent", "brisk") )
+# tilCount$JT_Clark_score <- as.factor(tilCount$JT_Clark_score)
+# levels(tilCount$JT_Clark_score) <- c("absent", "nonbrisk", "brisk")
+# #tilCount$JT_Clark_score <- factor(tilCount$JT_Clark_score, levels = c("absent", "nonbrisk", "brisk"))
+# ggplot(tilCount, aes(x=JT_Clark_score, y=Cam_121, fill = JT_Clark_score))+
+#   geom_violin()+
+#   scale_fill_brewer(type="qual", palette = "Dark2", name = "Clark score")+
+#   xlab("Clark score")+
+#   ylab("Weighted Cam_121 score (standardized)")+
+#   geom_hline(yintercept = -0.38, color = "grey", linetype = "longdash")+
+#   ggpubr::stat_compare_means(comparisons = my_comparisons, method = "t.test")+ # Add pairwise comparisons p-value
+#   ggpubr::stat_compare_means(label.y = 6, method = "anova")     # Add global p-value
+# ggsave("Cam_121_ClarkScore_AVAST-M.png", device = "png", width = 8, units = "cm")
 ```
 
 ```{r}
-my_comparisons <- list( c("0", "1"), c("1", "2"), c("2", "3") )
-tilCount$JT_TIL_grade <- as.factor(tilCount$JT_TIL_grade)
-ggplot(tilCount, aes(x=JT_TIL_grade, y=Cam_121, fill = JT_TIL_grade))+
-  geom_violin()+
-  scale_fill_brewer(type="qual", palette = "Dark2", name = "MIA score")+
-  xlab("MIA score")+
-  ylab("Weighted Cam_121 score (standardized)")+
-  geom_hline(yintercept = -0.38, color = "grey", linetype = "longdash")+
-  ggpubr::stat_compare_means(comparisons = my_comparisons, method = "t.test")+ # Add pairwise comparisons p-value
-  ggpubr::stat_compare_means(label.y = 6, method = "anova")     # Add global p-value
-ggsave("Cam_121_MIAScore_AVAST-M.png", device = "png", units = "cm", width = 8)
+# my_comparisons <- list( c("0", "1"), c("1", "2"), c("2", "3") )
+# tilCount$JT_TIL_grade <- as.factor(tilCount$JT_TIL_grade)
+# ggplot(tilCount, aes(x=JT_TIL_grade, y=Cam_121, fill = JT_TIL_grade))+
+#   geom_violin()+
+#   scale_fill_brewer(type="qual", palette = "Dark2", name = "MIA score")+
+#   xlab("MIA score")+
+#   ylab("Weighted Cam_121 score (standardized)")+
+#   geom_hline(yintercept = -0.38, color = "grey", linetype = "longdash")+
+#   ggpubr::stat_compare_means(comparisons = my_comparisons, method = "t.test")+ # Add pairwise comparisons p-value
+#   ggpubr::stat_compare_means(label.y = 6, method = "anova")     # Add global p-value
+# ggsave("Cam_121_MIAScore_AVAST-M.png", device = "png", units = "cm", width = 8)
 ```
 ## Plotting TIL counts for Leeds data
 
 ```{r}
-tilCountFile = read.table("~/Downloads/ROY_Sanger/cam121tils.txt", sep = "\t", header = TRUE, quote = "")
+# tilCountFile = read.table("~/Downloads/ROY_Sanger/cam121tils.txt", sep = "\t", header = TRUE, quote = "")
 ```
 Converting back to the original sign
 ```{r}
-tilCountFile$cam121score = -tilCountFile$cam121score
+#tilCountFile$cam121score = -tilCountFile$cam121score
 ```
 Removing the samples for which there is no til information
 ```{r}
-tilCountFile = tilCountFile[!(tilCountFile$tils==""),]
+#tilCountFile = tilCountFile[!(tilCountFile$tils==""),]
 ```
 
 Make violin plot with p-values on the top
 ```{r}
-my_comparisons <- list( c("absent", "nonbrisk"), c("brisk", "nonbrisk"), c("absent", "brisk") )
-tilCountFile$tils <- factor(tilCountFile$tils, levels = c("absent", "nonbrisk", "brisk"))
-ggplot(tilCountFile, aes(x=tils, y=cam121score, fill = tils))+
-  geom_violin()+
-  scale_fill_brewer(type="qual", palette = "Dark2", name = "Clark score")+
-  xlab("Clark Score")+
-  ylab("Weighted Cam_121 score (standardized)")+
-  geom_hline(yintercept = -0.38, color = "grey", linetype = "longdash")+
-  ggpubr::stat_compare_means(comparisons = my_comparisons, method = "t.test")+ # Add pairwise comparisons p-value
-  ggpubr::stat_compare_means(label.y = 6, method = "anova")     # Add global p-value
-ggsave("Cam_121_ClarkScore_Leeds.png", device = "png", width = 0.8, units = "cm")
+# my_comparisons <- list( c("absent", "nonbrisk"), c("brisk", "nonbrisk"), c("absent", "brisk") )
+# tilCountFile$tils <- factor(tilCountFile$tils, levels = c("absent", "nonbrisk", "brisk"))
+# ggplot(tilCountFile, aes(x=tils, y=cam121score, fill = tils))+
+#   geom_violin()+
+#   scale_fill_brewer(type="qual", palette = "Dark2", name = "Clark score")+
+#   xlab("Clark Score")+
+#   ylab("Weighted Cam_121 score (standardized)")+
+#   geom_hline(yintercept = -0.38, color = "grey", linetype = "longdash")+
+#   ggpubr::stat_compare_means(comparisons = my_comparisons, method = "t.test")+ # Add pairwise comparisons p-value
+#   ggpubr::stat_compare_means(label.y = 6, method = "anova")     # Add global p-value
+# ggsave("Cam_121_ClarkScore_Leeds.png", device = "png", width = 0.8, units = "cm")
 ```
 
 ```{r}
@@ -159,13 +159,9 @@ combinedScore = data.frame("Scanned_file.me"= jt_ns_sm_scores$JT_Scanned_file.me
 ```
 
 ```{r}
-cam_121 = read.table("./Cam_121_AvastM_Skin.tsv", sep = "\t", header = TRUE, quote = "")
+cam_121 = read.table("~/Desktop/Melanoma//Cam_121_AvastM_Skin.tsv", sep = "\t", header = TRUE, quote = "")
 cam_121$Sample = rownames(cam_121)
 tilCount = merge(combinedScore, cam_121, by.x = "R.Seq_sampleID", by.y = "Sample")
-```
-
-```{r}
-write.table(tilCount, file = "./AVAST-M_TILCount.tsv", sep = "\t", col.names = TRUE, row.names = FALSE, quote = FALSE)
 ```
 
 ```{r}
@@ -202,6 +198,14 @@ ggsave("Cam_121_MIAScore_AVAST-M.png", device = "png", units = "cm", width = 8)
 ```{r}
 g2
 ```
+
+```{r}
+#write.table(tilCount, file = "./AVAST-M_TILCount.tsv", sep = "\t", col.names = TRUE, row.names = FALSE, quote = FALSE)
+
+write.xlsx(tilCount, "~/Desktop/Melanoma/githubUpload/Source_Data/Figs_5A_5C.xlsx", colNames = TRUE, rowNames = TRUE, append = TRUE)
+
+```
+
 ## Plotting TIL counts for Leeds data
 
 ```{r}
@@ -240,3 +244,9 @@ ggsave("Cam_121_TILCount.pdf", device = "pdf", units='cm', width = 16, height = 
 ggsave("Cam_121_TILCount.png", device = "png", units='cm', width = 16, height = 16 )
 ```
 
+```{r}
+#write.table(tilCount, file = "./AVAST-M_TILCount.tsv", sep = "\t", col.names = TRUE, row.names = FALSE, quote = FALSE)
+
+write.xlsx(tilCountFile, "~/Desktop/Melanoma/githubUpload/Source_Data/Figs_5B.xlsx", colNames = TRUE, rowNames = TRUE, append = TRUE)
+
+```
