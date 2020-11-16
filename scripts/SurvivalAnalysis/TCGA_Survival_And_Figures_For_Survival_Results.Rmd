@@ -144,7 +144,7 @@ ggsurv
 ggsave("Cam_121_TCGA_Ln_OS.png",plot = ggsurv$plot, device = "png", width = 16, units = "cm")
 ```
 ```{r}
-
+summary(fit)
 ```
 
 ```{r}
@@ -337,7 +337,7 @@ pfs = read.table("~/Downloads/SurvivalResults_Signature_overlap_DASLarray_genes_
 ```
 
 ```{r}
-tilCount = read.table("./AVAST-M_TILCount.tsv", sep = "\t", header = TRUE, quote = "")
+tilCount = read.table("~/Desktop/Melanoma/AVAST-M_TILCount.tsv", sep = "\t", header = TRUE, quote = "")
 #tilCount$MIAScore = as.factor(tilCount$MIAScore)
 tilCount = tilCount[!duplicated(tilCount$R.Seq_sampleID), c("ClarkScore", "Scanned_file.me", "R.Seq_sampleID", "MIAScore")]
 rownames(tilCount) = tilCount$R.Seq_sampleID
@@ -345,14 +345,14 @@ rownames(tilCount) = tilCount$R.Seq_sampleID
 ```
 
 ```{r}
-cam_121 = read.table("./Cam_121_AvastM_Skin.tsv", sep = "\t", header = TRUE, quote = "")
+cam_121 = read.table("~/Desktop/Melanoma/Cam_121_AvastM_Skin.tsv", sep = "\t", header = TRUE, quote = "")
 cam_121$Group = as.factor(cam_121$Group)
 cam_121$Sample = rownames(cam_121)
 ```
 
 ```{r}
 library(DESeq2)
-load("./tcSkinEventMetNo_VS_tcSkinEventMetYes_CovariateCorrection.deseq2/de.Rdata")
+load("~/Desktop/Melanoma/tcSkinEventMetNo_VS_tcSkinEventMetYes_CovariateCorrection.deseq2/de.Rdata")
 ```
 
 ```{r}
@@ -366,6 +366,8 @@ clinicalData$ClarkScore = as.factor(clinicalData$ClarkScore)
 ```
 
 ```{r}
+library('survival')
+library('survminer')
 # survival outcome 1: "d" for death and "ltrc" for left truncated and right censored
 clinicalData$survival_d_ltrc = Surv(time  = as.numeric(difftime(clinicalData$DOE, clinicalData$DDiag))/365.25,
                                     time2 = as.numeric(difftime(clinicalData$DOC, clinicalData$DDiag))/365.25,
@@ -394,8 +396,17 @@ os$Group = c("Cam_121",
              "Cam_121+ECOG", 
              "Cam_121+Treatment", 
              "Cam_121+Nclass",
-             "Cam_24+Sex+Age+Stage+\nECOG+treatment+Nclass",
-             "Cam_24+Sex+Age+Stage+\nECOG+treatment+Nclass+\nTIL count")
+             "Cam_121+Sex+Age+Stage+\nECOG+treatment+Nclass",
+             "Cam_121+Sex+Age+Stage+\nECOG+treatment+Nclass+\nTIL count")
+os$Group = factor(os$Group, levels=c("Cam_121", 
+             "Cam_121+Sex", 
+             "Cam_121+Age", 
+             "Cam_121+Stage", 
+             "Cam_121+ECOG", 
+             "Cam_121+Treatment", 
+             "Cam_121+Nclass",
+             "Cam_121+Sex+Age+Stage+\nECOG+treatment+Nclass",
+             "Cam_121+Sex+Age+Stage+\nECOG+treatment+Nclass+\nTIL count"))
 os$Event = c("OS")
 ```
 ```{r}
@@ -415,8 +426,17 @@ pfs$Group = c("Cam_121",
              "Cam_121+ECOG", 
              "Cam_121+Treatment", 
              "Cam_121+Nclass",
-             "Cam_24+Sex+Age+Stage+\nECOG+treatment+Nclass",
-             "Cam_24+Sex+Age+Stage+\nECOG+treatment+Nclass+\nTIL count")
+             "Cam_121+Sex+Age+Stage+\nECOG+treatment+Nclass",
+             "Cam_121+Sex+Age+Stage+\nECOG+treatment+Nclass+\nTIL count")
+pfs$Group = factor(pfs$Group, levels=c("Cam_121", 
+             "Cam_121+Sex", 
+             "Cam_121+Age", 
+             "Cam_121+Stage", 
+             "Cam_121+ECOG", 
+             "Cam_121+Treatment", 
+             "Cam_121+Nclass",
+             "Cam_121+Sex+Age+Stage+\nECOG+treatment+Nclass",
+             "Cam_121+Sex+Age+Stage+\nECOG+treatment+Nclass+\nTIL count"))
 pfs$Event = c("PFS")
 ```
 ```{r}
@@ -476,8 +496,12 @@ g3 <- ggplot(data=df,
    
 #ggarrange(g1, g2, align = "h", ncol = 1, nrow = 2, heights = c(4, 4))
 ggsave(plot = g1, filename = "Cam_121_OS.png", device = "png", width = 16, units = "cm")
-ggsave(plot = g2, filename = "Cam_121_OS.png", device = "png", width = 16, units = "cm")
-ggsave(plot = g3, filename = "Cam_121_OS.png", device = "png", width = 16, height = 16,  units = "cm")
+ggsave(plot = g2, filename = "Cam_121_PFS.png", device = "png", width = 16, units = "cm")
+ggsave(plot = g3, filename = "Cam_121_OS_PFS.png", device = "png", width = 16, height = 16,  units = "cm")
+```
+
+```{r}
+g2
 ```
 
 ```{r}

@@ -85,6 +85,24 @@ d0<- ggplot(currentResults[currentResults$CV == "10-Fold CV", ],
 ggsave("~/Desktop/Melanoma/kFold.png", device = "png", 
        width = 16, height = 10, units = "cm")
 
+d0_1<- ggplot(currentResults[(currentResults$CV == "10-Fold CV")&
+                               (currentResults$Signature_f%in%c("Cam_121+\nClinical Covariates", 
+                                                                "Cam_121", "Clinical Covariates")), ], 
+            aes(x = ClassifierName, y = ROC, color = ClassifierName))+
+  geom_point(size = 2, position=position_dodge(width=0.5))+
+  geom_errorbar(aes(ymin = ROC - ROCSD, 
+                    ymax = ROC + ROCSD), 
+                width = .1,
+                position=position_dodge(width=0.5)) +
+  scale_color_brewer(palette = "Set2", type = "qual")+
+  ylim(c(0, 1))+
+  ylab("AUROC")+
+  ggtitle("Training Dataset = Primary melanoma")+
+  #theme(axis.text.x = element_text(angle=90, hjust=1))+
+  facet_grid(.~Signature_f, scales = "free_x", drop = TRUE)
+ggsave("~/Desktop/Melanoma/kFold_noExternalSignature.png", device = "png", 
+       width = 12, height = 10, units = "cm")
+
 #library("ggplot2")
 d2<- ggplot(currentResults, aes(x = ClassifierName, y = Sens, color = CV))+
   geom_point(size = 2, position=position_dodge(width=0.5))+
@@ -192,7 +210,7 @@ write.xlsx(predTest, "~/Desktop/Melanoma/githubUpload/Source_Data/Figs_3B_3C_3D_
 #library("ggplot2")
 library("plotROC")
 
-g <- ggplot(predTest,          
+g <- ggplot(predTest[predTest$Signature%in%c("Cam_121+\nClinical Covariates", "Cam_121", "Clinical Covariates"), ],          
   aes(m=Yes, d=factor(obs, levels = c("No", "Yes")), color = Signature_ROC)) +
   geom_roc(hjust = -0.4, vjust = 1.5, n.cuts=0) +
   #coord_equal() +
@@ -203,6 +221,7 @@ g <- ggplot(predTest,
   ggpubr::theme_pubr(base_size=10, legend = "right", x.text.angle = 45) +
   theme(legend.position=c(.825,.325), legend.text = element_text(size=6), 
         legend.title = element_text(size = 6))+
+  ggtitle("Validation Dataset = Lymph node")+
   coord_fixed()
 
 g
@@ -350,7 +369,7 @@ load("~/Desktop/Melanoma/kFold_1000repeats/trainedModel_Signature_overlap_DASLar
 fic = data.frame(resultsWithTrainedModels[["model"]][["finalModel"]][["importance"]])
 
 write.xlsx(fic, "~/Desktop/Melanoma/githubUpload/Source_Data/Fig_S10.xlsx", colNames = TRUE, rowNames = TRUE, append = TRUE)
-
+# 
 fic$Gene = as.factor(rownames(fic))
 
 fic$Gene.f = factor(fic$Gene, levels = levels(fic$Gene))
