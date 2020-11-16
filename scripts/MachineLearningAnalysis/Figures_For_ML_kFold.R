@@ -64,6 +64,7 @@ d1<- ggplot(currentResults, aes(x = ClassifierName, y = ROC, color = CV))+
                 position=position_dodge(width=0.5)) +
   scale_color_brewer(palette = "Set2", type = "qual")+
   ylim(c(0, 1))+
+  xlab("Classifier name")+
   #theme(axis.text.x = element_text(angle=90, hjust=1))+
   facet_grid(.~Signature_f, scales = "free_x", drop = TRUE)
   #ggpubr::theme_pubr(base_size=10, legend='bottom')
@@ -80,6 +81,7 @@ d0<- ggplot(currentResults[currentResults$CV == "10-Fold CV", ],
   scale_color_brewer(palette = "Set2", type = "qual")+
   ylim(c(0, 1))+
   ylab("AUROC")+
+  xlab("Classifier name")+
   #theme(axis.text.x = element_text(angle=90, hjust=1))+
   facet_grid(.~Signature_f, scales = "free_x", drop = TRUE)
 ggsave("~/Desktop/Melanoma/kFold.png", device = "png", 
@@ -94,13 +96,14 @@ d0_1<- ggplot(currentResults[(currentResults$CV == "10-Fold CV")&
                     ymax = ROC + ROCSD), 
                 width = .1,
                 position=position_dodge(width=0.5)) +
-  scale_color_brewer(palette = "Set2", type = "qual")+
+  scale_color_brewer(palette = "Set2", type = "qual", name="Classifier name")+
   ylim(c(0, 1))+
   ylab("AUROC")+
+  xlab("Classifier name")+
   ggtitle("Training Dataset = Primary melanoma")+
   #theme(axis.text.x = element_text(angle=90, hjust=1))+
   facet_grid(.~Signature_f, scales = "free_x", drop = TRUE)
-ggsave("~/Desktop/Melanoma/kFold_noExternalSignature.png", device = "png", 
+ggsave("~/Desktop/Melanoma/Figure3A.png", device = "png", 
        width = 12, height = 10, units = "cm")
 
 #library("ggplot2")
@@ -112,6 +115,7 @@ d2<- ggplot(currentResults, aes(x = ClassifierName, y = Sens, color = CV))+
                 position=position_dodge(width=0.5)) +
   scale_color_brewer(palette = "Set2", type = "qual")+
   ylim(c(0, 1))+
+  xlab("Classifier name")+
   #theme(axis.text.x = element_text(angle=90, hjust=1))+
   facet_grid(.~Signature_f, scales = "free_x", drop = TRUE)
   #ggpubr::theme_pubr(base_size=10, legend='bottom')
@@ -126,6 +130,7 @@ d02 <- ggplot(currentResults[currentResults$CV == "10-Fold CV", ],
   scale_color_brewer(palette = "Set2", type = "qual")+
   ylim(c(0, 1))+
   ylab("Sensitivity")+
+  xlab("Classifier name")+
   #theme(axis.text.x = element_text(angle=90, hjust=1))+
   facet_grid(.~Signature_f, scales = "free_x", drop = TRUE)
 ggsave("~/Desktop/Melanoma/kFoldSens.png", device = "png", 
@@ -140,6 +145,7 @@ d3<- ggplot(currentResults, aes(x = ClassifierName, y = Spec, color = CV))+
                 position=position_dodge(width=0.5)) +
   scale_color_brewer(palette = "Set2", type = "qual")+
   ylim(c(0, 1))+
+  xlab("Classifier name")+
   #theme(axis.text.x = element_text(angle=90, hjust=1))+
   facet_grid(.~Signature_f, scales = "free_x", drop = TRUE)
   #ggpubr::theme_pubr(base_size=10, legend='bottom')
@@ -154,6 +160,7 @@ d03 <- ggplot(currentResults[currentResults$CV == "10-Fold CV", ],
   scale_color_brewer(palette = "Set2", type = "qual")+
   ylim(c(0, 1))+
   ylab("Specificity")+
+  xlab("Classifier name")+
   #theme(axis.text.x = element_text(angle=90, hjust=1))+
   facet_grid(.~Signature_f, scales = "free_x", drop = TRUE)
 ggsave("~/Desktop/Melanoma/kFoldSpec.png", device = "png", 
