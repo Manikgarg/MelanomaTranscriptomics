@@ -1,0 +1,8 @@
+geneSet: ['Signature_overlap_DASLarray_genes']
+#classifierName: ['rf', 'lda', 'knn', 'svmRadial', 'svmLinear', 'bayesglm', 'plr', 'glmnet']
+classifierName: ['rf', 'lda', 'knn', 'svmRadial', 'svmLinear', 'bayesglm', 'glmnet']
+seed: ['3']
+#applyPCA: ['FALSE', 'TRUE']
+applyPCA: ['FALSE']
+#cvMethod: ['repeatedcv', 'boot']
+cvMethod: ['boot']
