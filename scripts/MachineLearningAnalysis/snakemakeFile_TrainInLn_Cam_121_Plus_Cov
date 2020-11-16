@@ -1,0 +1,46 @@
+import os
+import pandas as pd
+# Snakemake example
+
+configfile: "config/config.yaml"
+include: "rules/jupyterlab.rule"
+
+# read samples or metadata
+#sampleFile = 'resources/options.txt'
+#samples = pd.read_csv(sampleFile, sep = "\t")
+
+#fileFormats = ["tsv", "Rdata"]
+f = []
+f.extend(expand(["results/{geneSet}/pca_{applyPCA}/{classifierName}/resultTrain_{geneSet}_ClinicalCovariates_{classifierName}_pca_{applyPCA}_{seed}_{cvMethod}.tsv", "results/{geneSet}/pca_{applyPCA}/{classifierName}/predTrain_{geneSet}_ClinicalCovariates_{classifierName}_pca_{applyPCA}_{seed}_{cvMethod}.tsv"],
+		geneSet = config['geneSet'],
+		classifierName = config['classifierName'],
+		seed = config['seed'],
+                applyPCA = config['applyPCA'],
+                cvMethod = config['cvMethod']))
+		
+
+rule all:
+    input:
+        f
+
+
+rule evalModel:
+    input:
+        trainRdata = ancient("../oneSigOnly/data/deLn.Rdata"),
+        #testRdata = ancient("../oneSigOnly/data/deLn.Rdata"),
+        helperFile = ancient("../oneSigOnly/data/HelperMLForEventMet.R"),
+        geneMappings = ancient("../oneSigOnly/data/EventMet_Survival_Genes_ML_Individual_Published_Jeremie_WithoutLn_WithTopGenesByLfc.txt"),
+	#lfcShrinkResults = ancient("../oneSigOnly/data/deWithLfcSkrinkageApplied.tsv"),
+        script = ancient("scripts/MLForKFold.R"),
+        numPCs = ancient("../oneSigOnly/data/numPCsPerSignature.tsv")
+    output:
+        summaryFile1 = "results/{geneSet}/pca_{applyPCA}/{classifierName}/resultTrain_{geneSet}_ClinicalCovariates_{classifierName}_pca_{applyPCA}_{seed}_{cvMethod}.tsv",
+        summaryFile2 = "results/{geneSet}/pca_{applyPCA}/{classifierName}/predTrain_{geneSet}_ClinicalCovariates_{classifierName}_pca_{applyPCA}_{seed}_{cvMethod}.tsv",
+        #summaryFile3 = "results/{geneSet}/pca_{applyPCA}/{classifierName}/predTest_{geneSet}_ClinicalCovariates_{classifierName}_pca_{applyPCA}_{seed}_{cvMethod}.tsv"
+    shell:
+        """
+	#echo "{wildcards.applyPCA} {wildcards.geneSet} {wildcards.classifierName}"
+	/nfs/production3/ma/home/manikg/miniconda3/envs/MelanomaEnv/bin/Rscript {input.script} {wildcards.classifierName} {wildcards.geneSet} {input.trainRdata} {input.geneMappings} {wildcards.applyPCA} {input.helperFile} {output.summaryFile1} {output.summaryFile2} {wildcards.seed} {input.numPCs} {wildcards.cvMethod}
+"""
+	
+
