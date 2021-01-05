@@ -56,7 +56,8 @@ currentResults$Signature_f <- factor(currentResults$Signature_f,
 write.xlsx(currentResults, "~/Desktop/Melanoma/githubUpload/Source_Data/Figs_3A_S7_S8_And_SupplementaryTable_S3A.xlsx", colNames = TRUE, rowNames = TRUE, append = TRUE)
 
 #library("ggplot2")
-d1<- ggplot(currentResults, aes(x = ClassifierName, y = ROC, color = CV))+
+d1<- ggplot(currentResults[(currentResults$Signature_f%in%c("Cam_121+\nClinical Covariates", 
+                                               "Cam_121", "Clinical Covariates")), ], aes(x = ClassifierName, y = ROC, color = CV))+
   geom_point(size = 2, position=position_dodge(width=0.5))+
   geom_errorbar(aes(ymin = ROC - ROCSD, 
                     ymax = ROC + ROCSD), 
@@ -68,7 +69,7 @@ d1<- ggplot(currentResults, aes(x = ClassifierName, y = ROC, color = CV))+
   #theme(axis.text.x = element_text(angle=90, hjust=1))+
   facet_grid(.~Signature_f, scales = "free_x", drop = TRUE)
   #ggpubr::theme_pubr(base_size=10, legend='bottom')
-ggsave("~/Desktop/Melanoma/kFold_Vs_LOOCV.png", device = "png", 
+ggsave("~/Desktop/Melanoma/kFold_Vs_LOOCV_mainOnly.png", device = "png", 
        width = 16, height = 10, units = "cm")
 
 d0<- ggplot(currentResults[currentResults$CV == "10-Fold CV", ], 
@@ -120,7 +121,9 @@ d2<- ggplot(currentResults, aes(x = ClassifierName, y = Sens, color = CV))+
   facet_grid(.~Signature_f, scales = "free_x", drop = TRUE)
   #ggpubr::theme_pubr(base_size=10, legend='bottom')
 
-d02 <- ggplot(currentResults[currentResults$CV == "10-Fold CV", ], 
+d02 <- ggplot(currentResults[(currentResults$CV == "10-Fold CV") & 
+                               (currentResults$Signature_f%in%c("Cam_121+\nClinical Covariates",
+                                                                "Cam_121", "Clinical Covariates")), ], 
               aes(x = ClassifierName, y = Sens, color = ClassifierName))+
   geom_point(size = 2, position=position_dodge(width=0.5))+
   geom_errorbar(aes(ymin = Sens - SensSD, 
@@ -150,7 +153,9 @@ d3<- ggplot(currentResults, aes(x = ClassifierName, y = Spec, color = CV))+
   facet_grid(.~Signature_f, scales = "free_x", drop = TRUE)
   #ggpubr::theme_pubr(base_size=10, legend='bottom')
 
-d03 <- ggplot(currentResults[currentResults$CV == "10-Fold CV", ], 
+d03 <- ggplot(currentResults[(currentResults$CV == "10-Fold CV") & 
+                               (currentResults$Signature_f%in%c("Cam_121+\nClinical Covariates",
+                                                                "Cam_121", "Clinical Covariates")), ], 
               aes(x = ClassifierName, y = Spec, color = ClassifierName))+
   geom_point(size = 2, position=position_dodge(width=0.5))+
   geom_errorbar(aes(ymin = Spec - SpecSD, 
@@ -355,14 +360,14 @@ for(metric in c("ROC", "Sens", "Spec")){
   #tStatistic4 = t.test(x = currentResults[currentResults$Signature == "Signature_overlap_DASLarray_genes", metric], y = currentResults[currentResults$Signature == "Gerami_genes" & currentResults$ClassifierName == "rf", metric], var.equal = FALSE, paired = FALSE, alternative = "greater")
   #tStatistic5 = t.test(x = currentResults[currentResults$Signature == "Signature_overlap_DASLarray_genes", metric], y = currentResults[currentResults$Signature == "LMC_150_genes" & currentResults$ClassifierName == "glmnet", metric], var.equal = FALSE, paired = FALSE, alternative = "greater")
   
-  tStatistic = data.frame("Cam_121_Cov_Vs_Cov" = c(tStatistic1[["p.value"]], tStatistic1[["conf.int"]], tStatistic1[["stderr"]]),
-                          "Cam_121_Vs_Cov" = c(tStatistic2[["p.value"]], tStatistic2[["conf.int"]], tStatistic2[["stderr"]]),
-                          "DecisionDxMelanoma_Vs_Cov" = c(tStatistic3[["p.value"]], tStatistic3[["conf.int"]], tStatistic3[["stderr"]]), 
-                          "LMC_150_Vs_Cov" = c(tStatistic4[["p.value"]], tStatistic4[["conf.int"]], tStatistic4[["stderr"]])
+  tStatistic = data.frame("Cam_121_Cov_Vs_Cov" = c(tStatistic1[["statistic"]][["t"]], tStatistic1[["p.value"]], tStatistic1[["conf.int"]], tStatistic1[["stderr"]]),
+                          "Cam_121_Vs_Cov" = c(tStatistic2[["statistic"]][["t"]], tStatistic2[["p.value"]], tStatistic2[["conf.int"]], tStatistic2[["stderr"]]),
+                          "DecisionDxMelanoma_Vs_Cov" = c(tStatistic3[["statistic"]][["t"]], tStatistic3[["p.value"]], tStatistic3[["conf.int"]], tStatistic3[["stderr"]]), 
+                          "LMC_150_Vs_Cov" = c(tStatistic4[["statistic"]][["t"]], tStatistic4[["p.value"]], tStatistic4[["conf.int"]], tStatistic4[["stderr"]])
                           #"Cam_121_Cov_Vs_DecisionDxMelanoma" = c(tStatistic4[["p.value"]], tStatistic4[["conf.int"]], tStatistic4[["SEerr"]]),
                           #"Cam_121_Cov_Vs_LMC_150" = c(tStatistic5[["p.value"]], tStatistic5[["conf.int"]], tStatistic5[["SEerr"]])
   )
-  rownames(tStatistic) = paste(metric, c("p.value", "conf.int1", "conf.int2", "SE"), sep = ".")
+  rownames(tStatistic) = paste(metric, c("t.statistic", "p.value", "conf.int1", "conf.int2", "SE"), sep = ".")
   tStatistics = rbind(tStatistics, tStatistic)
 } 
 

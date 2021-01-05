@@ -47,7 +47,7 @@ d1<- ggplot(currentResults, aes(x = ClassifierName, y = ROC, color = Resampling)
                 width = .1,
                 position=position_dodge(width=0.5)) +
   scale_color_brewer(palette = "Set2", type = "qual", name="Resampling\nmethod")+
-  geom_hline(aes(yintercept=median, linetype=Signature_f, color=Resampling), data=linesDf)+
+  geom_hline(aes(yintercept=median, linetype=Resampling, color=Resampling), data=linesDf)+
   scale_linetype(name="Median ROC")+
   ylim(c(0, 1))+
   ylab('AUROC')+
