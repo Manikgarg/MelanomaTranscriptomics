@@ -34,7 +34,7 @@ currentResults$Signature_f <- factor(currentResults$Signature_f,
 
 currentResults$Resampling <- as.factor(currentResults$Resampling)
 levels(currentResults$Resampling) <- c("Bootstrap", "10-Fold CV")
-#write.xlsx(currentResults, "~/Desktop/Melanoma/githubUpload/Source_Data/Figs_3A_S7_S8_And_SupplementaryTable_S3A.xlsx", colNames = TRUE, rowNames = TRUE, append = TRUE)
+write.xlsx(currentResults, "~/Desktop/Melanoma/githubUpload/Source_Data/Figs_3E_And_SupplementaryTable_S3C.xlsx", colNames = TRUE, rowNames = TRUE, append = TRUE)
 
 #library("ggplot2")
 linesDf<-currentResults%>%group_by(Signature_f, Resampling)%>%summarise(max=max(ROC), median=median(ROC), mean=mean(ROC))
