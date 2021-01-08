@@ -52,12 +52,13 @@ d1<- ggplot(currentResults, aes(x = ClassifierName, y = ROC, color = Resampling)
   ylim(c(0, 1))+
   ylab('AUROC')+
   xlab('Classifier name')+
-  ggtitle("Training dataset = Lymph node")+
+  ggtitle("Training dataset = AVAST-M regional lymph nodes")+
+  theme(text=element_text(size=7,  family="sans"), legend.position = "right")+
   #theme(axis.text.x = element_text(angle=90, hjust=1))+
-  facet_grid(.~Signature_f, scales = "free_x", drop = TRUE)+
-  ggpubr::theme_pubr(base_size=10, legend='right', x.text.angle = 90)
-ggsave("~/Desktop/Melanoma/Figure3A'_ROC.png", device = "png", 
-       width = 18.3, height = 10, units = "cm")
+  facet_grid(.~Signature_f, scales = "free_x", drop = TRUE)
+  #ggpubr::theme_pubr(base_size=10, legend='right', x.text.angle = 90)
+ggsave("~/Desktop/Melanoma/Figure3e.pdf", device = "pdf", 
+       width = 18, height = 8, units = "cm")
 
 linesDf<-currentResults%>%group_by(Signature_f, Resampling)%>%summarise(max=max(Sens), median=median(Sens), mean=mean(Sens))
 

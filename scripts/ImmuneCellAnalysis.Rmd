@@ -15,11 +15,11 @@ theme_set(ggpubr::theme_pubr(base_size=10, legend='bottom'))
 ```
 
 ```{r}
-pathTogeneToGroupMappings = "./EventMet_Survival_Genes_ML_Individual_Published_Jeremie_WithoutLn_WithTopGenesByLfc.txt"
+pathTogeneToGroupMappings = "~/Desktop/Melanoma/EventMet_Survival_Genes_ML_Individual_Published_Jeremie_WithoutLn_WithTopGenesByLfc.txt"
 group = "Signature_overlap_DASLarray_genes"
 #group = "SignatureGenes_SentToJeremie_121"
-pathToTheDESeq2Results = "./tcSkinEventMetNo_VS_tcSkinEventMetYes_CovariateCorrection.deseq2/de.Rdata"
-pathToAngelovaGeneList = "../../Downloads/Angelova_2015_SignatureFile.csv"
+pathToTheDESeq2Results = "~/Desktop/Melanoma/tcSkinEventMetNo_VS_tcSkinEventMetYes_CovariateCorrection.deseq2/de.Rdata"
+pathToAngelovaGeneList = "~/Downloads/Angelova_2015_SignatureFile.csv"
 #pathToImmuneScoreResults = "../../Downloads/Melanoma_estimate_score_t_CIBERSORTx_ClinicalData_Sig121_HighLow.txt"
 ```
 
@@ -345,15 +345,16 @@ g1<- ggplot(df, aes(x=Cam_121, y=ImmuneCell, color=EventMet))+
      scale_color_manual(values = c("#1F78B4", "#E31A1C"), name = "Distant\nmetastases")+
      geom_smooth(method = "lm", alpha = .15, aes(fill = EventMet))+
      scale_fill_manual(values = c("#1F78B4", "#E31A1C"), name = "Distant\nmetastases")+
-     ggpubr::stat_cor(aes(color = EventMet), label.x = -0.75, label.y =c(max(df$ImmuneCell)+0.45,                                                                      max(df$ImmuneCell)+0.1))+
+  theme(text=element_text(size=7,  family="sans"), legend.position = "none")+
+  ggpubr::stat_cor(aes(color = EventMet), label.x = -0.75, label.y =c(max(df$ImmuneCell)+0.45, max(df$ImmuneCell)+0.1), size = 2.5, family="sans")+
   ylim(c(min(df$ImmuneCell), max(df$ImmuneCell)+0.5))+
   coord_fixed()
-ggsave(paste0("All Immune cell-types", "CorrelationPlot.png", sep = ""), device = "png", units = "cm", width = 8)
+ggsave("~/Desktop/Melanoma/Figure4e.pdf", device = "pdf", units = "cm", width = 8, height=8)
 
-colorscale = scale_fill_gradientn(
-    colors = rev(brewer.pal(9, "YlGnBu")),
-    values = c(0, exp(seq(-5, 0, length.out = 50))),
-    name = "Level")
+# colorscale = scale_fill_gradientn(
+#     colors = rev(brewer.pal(9, "YlGnBu")),
+#     values = c(0, exp(seq(-5, 0, length.out = 50))),
+#     name = "Level")
 g1 
 
 g2<- ggplot(df, aes(x=Cam_121, y=ImmuneCell, color=EventMet))+
@@ -362,10 +363,11 @@ g2<- ggplot(df, aes(x=Cam_121, y=ImmuneCell, color=EventMet))+
   ylab("All immune cell-types")+
   scale_color_manual(values = c("#1F78B4", "#E31A1C"), name = "Distant\nmetastases")+
   geom_density_2d(alpha = 0.75) +
+  theme(text=element_text(size=7,  family="sans"), legend.position = "none")+
   coord_fixed()
 g2
 
-ggsave(paste0("All", "DensityPlot.png", sep = ""), device = "png", units = "cm", width = 8)
+ggsave("~/Desktop/Melanoma/Figure4f.pdf", device = "pdf", units = "cm", width = 8, height=8)
 ```
 
 ```{r}
@@ -378,8 +380,10 @@ g7<-ggplot(df, aes(x=PC1, y=PC2, color=Cam_121Group, shape = ImmuneCellGroup))+
   geom_point(alpha = 0.5)+
   scale_color_manual(values = c("#E31A1C", "#1F78B4"), name = "Weighted\nCam_121\nscore")+
   scale_shape(name="Immune\ncell\nexpression")+
-  coord_fixed()+theme(legend.position = "right")
-ggsave("AllPCA.png", device = "png", units = "cm", width = 8)
+  coord_fixed()+
+  theme(text=element_text(size=7,  family="sans"), legend.position = "right")
+ggsave("~/Desktop/Melanoma/Figure4g.pdf", device = "pdf", units = "cm", width =14, height=6)
+g7
 ```
 
 ```{r}
@@ -408,11 +412,11 @@ g3<- ggplot(df, aes(x=Cam_121, y=ImmuneCell, color=EventMet))+
   scale_color_manual(values = c("#1F78B4", "#E31A1C"), name = "Distant\nmetastases")+
   geom_smooth(method = "lm", alpha = .15, aes(fill = EventMet))+
   scale_fill_manual(values = c("#1F78B4", "#E31A1C"), name = "Distant\nmetastases")+
-  ggpubr::stat_cor(aes(color = EventMet), label.x = -0.75, label.y = c(max(df$ImmuneCell)+0.45,
-                                                                      max(df$ImmuneCell)+0.1))+
+  theme(text=element_text(size=7,  family="sans"), legend.position = "top")+
+  ggpubr::stat_cor(aes(color = EventMet), label.x = -0.75, label.y = c(max(df$ImmuneCell)+0.45, max(df$ImmuneCell)+0.1), size = 2.5, family="sans")+
   ylim(c(min(df$ImmuneCell), max(df$ImmuneCell)+0.5))+
   coord_fixed()
-ggsave(paste0(cellType, "CorrelationPlot.png", sep = ""), device = "png", units = "cm", width = 8)
+ggsave("~/Desktop/Melanoma/Figure4a.pdf", device = "pdf", units = "cm", width = 8, height=8)
 
 g4<- ggplot(df, aes(x=Cam_121, y=ImmuneCell, color=EventMet))+
   #geom_point()+
@@ -420,10 +424,16 @@ g4<- ggplot(df, aes(x=Cam_121, y=ImmuneCell, color=EventMet))+
   ylab("Activated B-cells")+
   scale_color_manual(values = c("#1F78B4", "#E31A1C"), name = "Distant\nmetastases")+
   geom_density_2d(alpha = 0.75) +
+  theme(text=element_text(size=7,  family="sans"), legend.position = "top")+
   coord_fixed()
-
-ggsave(paste0(cellType, "DensityPlot.png", sep = ""), device = "png", units = "cm", width = 8)
+ggsave("~/Desktop/Melanoma/Figure4b.pdf", device = "pdf", units = "cm", width = 8, height=8)
 ```
+
+```{r}
+g3
+g4
+```
+
 ```{r}
 library("openxlsx")
 write.xlsx(df, "~/Desktop/Melanoma/githubUpload/Source_Data/Figs_4A_4B.xlsx", colNames = TRUE, rowNames = TRUE, append = TRUE)
@@ -450,21 +460,24 @@ g5<- ggplot(df, aes(x=Cam_121, y=ImmuneCell, color=EventMet))+
   scale_color_manual(values = c("#1F78B4", "#E31A1C"), name = "Distant\nmetastases")+
   geom_smooth(method = "lm", alpha = .15, aes(fill = EventMet))+
   scale_fill_manual(values = c("#1F78B4", "#E31A1C"), name = "Distant\nmetastases")+
-  ggpubr::stat_cor(aes(color = EventMet), label.x = -0.75, label.y = c(max(df$ImmuneCell)+0.45,
-                                                                      max(df$ImmuneCell)+0.1))+
+  theme(text=element_text(size=7,  family="sans"), legend.position = "none")+
+  ggpubr::stat_cor(aes(color = EventMet), label.x = -0.75, label.y = c(max(df$ImmuneCell)+0.45, max(df$ImmuneCell)+0.1), size = 2.5, family="sans")+
   ylim(c(min(df$ImmuneCell), max(df$ImmuneCell)+0.5))+
   coord_fixed()
-ggsave(paste0(cellType, "CorrelationPlot.png", sep = ""), device = "png", units = "cm", width = 8)
-
+ggsave("~/Desktop/Melanoma/Figure4c.pdf", device = "pdf", units = "cm", width = 8, height=8)
+g5
 g6<- ggplot(df, aes(x=Cam_121, y=ImmuneCell, color=EventMet))+
   #geom_point()+
   xlab("Weighted Cam_121 score (standardized)")+
   ylab("T-cells")+
   scale_color_manual(values = c("#1F78B4", "#E31A1C"), name = "Distant\nmetastases")+
   geom_density_2d(alpha = 0.75) +
-  coord_fixed()
-ggsave(paste0(cellType, "DensityPlot.png", sep = ""), device = "png", units = "cm", width = 8)
+  coord_fixed()+
+  theme(text=element_text(size=7,  family="sans"), legend.position = "none")
+ggsave("~/Desktop/Melanoma/Figure4d.pdf", device = "pdf", units = "cm", width = 8, height=8)
+g6
 ```
+
 ```{r}
 library("openxlsx")
 write.xlsx(df, "~/Desktop/Melanoma/githubUpload/Source_Data/Figs_4C_4D.xlsx", colNames = TRUE, rowNames = TRUE, append = TRUE)

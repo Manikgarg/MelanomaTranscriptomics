@@ -101,11 +101,12 @@ d0_1<- ggplot(currentResults[(currentResults$CV == "10-Fold CV")&
   ylim(c(0, 1))+
   ylab("AUROC")+
   xlab("Classifier name")+
-  ggtitle("Training Dataset = Primary melanoma")+
+  ggtitle("Training Dataset = AVAST-M skin primaries")+
   #theme(axis.text.x = element_text(angle=90, hjust=1))+
+  theme(text=element_text(size=7,  family="sans"), legend.position = "right")+
   facet_grid(.~Signature_f, scales = "free_x", drop = TRUE)
-ggsave("~/Desktop/Melanoma/Figure3A.png", device = "png", 
-       width = 12, height = 10, units = "cm")
+ggsave("~/Desktop/Melanoma/Figure3a.pdf", device = "pdf", 
+       width = 18, height = 8, units = "cm")
 
 #library("ggplot2")
 d2<- ggplot(currentResults, aes(x = ClassifierName, y = Sens, color = CV))+
@@ -229,16 +230,19 @@ g <- ggplot(predTest[predTest$Signature%in%c("Cam_121+\nClinical Covariates", "C
   style_roc(xlab = "False Positive Rate (1-Specificity)", ylab = "True Positive Rate (Sensitivity)") +
   geom_abline(intercept = 0, slope = 1, col = "gray60", lty = 2)+
   scale_color_brewer(type = "qual", palette = "Paired", name = "Signature") +
+  ggpubr::theme_pubr()+
   #scale_linetype_manual(values = c(3, 1), name = "Classifier")+
-  ggpubr::theme_pubr(base_size=10, legend = "right", x.text.angle = 45) +
-  theme(legend.position=c(.825,.325), legend.text = element_text(size=6), 
-        legend.title = element_text(size = 6))+
-  ggtitle("Validation Dataset = Lymph node")+
+  theme(text=element_text(size=7,  family="sans"), 
+        legend.position = c(.825,.325), axis.text.x=element_text(angle=45))+
+  #ggpubr::theme_pubr(base_size=10, legend = "right", x.text.angle = 45) +
+  #theme(legend.position=c(.825,.325), legend.text = element_text(size=7), 
+  #      legend.title = element_text(size = 7))+
+  ggtitle("Validation Dataset = AVAST-M regional lymph nodes")+
   coord_fixed()
+ggsave("~/Desktop/Melanoma/Figure3b.pdf", device = "pdf", units='cm', width = 8.5, height=8)
+
 
 g
-
-ggsave("~/Desktop/Melanoma/MLLnValidation.png", device = "png", units='cm', width = 8)
 
 ggpubr::ggarrange(d1, g, ncol = 1, nrow = 2, 
                   labels = c("A", "B"),
@@ -307,8 +311,8 @@ library("VennDiagram")
 x = list(A = rownames(combinedPredictions)[combinedPredictions$Comparison %in% c("C", "CE")], 
          B = rownames(combinedPredictions)[combinedPredictions$Comparison %in% c("E", "CE")])
 
-png("Cam_121_Vs_Cov.png", width = 8, units = "cm")
-p = venn.diagram(x, cex = 2, cat.cex = 0, fill = c("mistyrose", "lightskyblue1"), col = c("mistyrose", "lightskyblue1"), alpha = c(0.5, 0.5), filename = NULL)
+pdf("~/Desktop/Melanoma/Figure3d.pdf", width = 3.15, height = 1.6, family="sans", pointsize=7)
+p = venn.diagram(x, resolution=300, imagetype = "pdf", cat.cex = 0, fill = c("mistyrose", "lightskyblue1"), col = c("mistyrose", "lightskyblue1"), alpha = c(0.5, 0.5), filename = NULL)
 grid.draw(p)
 dev.off()
 
@@ -342,10 +346,15 @@ library("VennDiagram")
 x = list(A = rownames(combinedPredictions)[combinedPredictions$Comparison %in% c("C", "CE")], 
          B = rownames(combinedPredictions)[combinedPredictions$Comparison %in% c("E", "CE")])
 
-png("Cam_121_Cov_Vs_Cov.png", width = 8, units = "cm")
-p = venn.diagram(x, cex = 2, cat.cex = 0, fill = c("mistyrose", "lightskyblue1"), col = c("mistyrose", "lightskyblue1"), alpha = c(0.5, 0.5), filename = NULL)
+pdf("~/Desktop/Melanoma/Figure3c.pdf", width = 3.15, height = 1.6, family="sans", pointsize=7)
+p = venn.diagram(x, resolution=300, imagetype = "pdf", cat.cex = 0, fill = c("mistyrose", "lightskyblue1"), col = c("mistyrose", "lightskyblue1"), alpha = c(0.5, 0.5), filename = NULL)
 grid.draw(p)
 dev.off()
+
+# png("Cam_121_Cov_Vs_Cov.png", width = 8, units = "cm")
+# p = venn.diagram(x, cex = 2, cat.cex = 0, fill = c("mistyrose", "lightskyblue1"), col = c("mistyrose", "lightskyblue1"), alpha = c(0.5, 0.5), filename = NULL)
+# grid.draw(p)
+# dev.off()
 
 
 # Train p-values ----------------------------------------------------------

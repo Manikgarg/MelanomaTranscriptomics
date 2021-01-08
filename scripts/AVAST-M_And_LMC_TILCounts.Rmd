@@ -176,10 +176,12 @@ g1<- ggplot(tilCount[!is.na(tilCount$ClarkScore), ], aes(x=ClarkScore, y=Signatu
   xlab("Clark score (AVAST-M Skin)")+
   ylab("Weighted Cam_121 score (stand.)")+
   geom_hline(yintercept = quantile(tilCount$Signature, 0.33), color = "grey", linetype = "longdash")+
-  ggpubr::stat_compare_means(comparisons = my_comparisons, method = "t.test")+ # Add pairwise comparisons p-value
-  ggpubr::stat_compare_means(label.y = 6, method = "anova")     # Add global p-value
-ggsave("Cam_121_ClarkScore_AVAST-M.png", device = "png", width = 8, units = "cm")
+  theme(text=element_text(size=7,  family="sans"))+
+  ggpubr::stat_compare_means(comparisons = my_comparisons, method = "t.test", size = 2.5, family="sans")+ # Add pairwise comparisons p-value
+  ggpubr::stat_compare_means(label.y = 6, method = "anova", size = 2.5, family="sans")     # Add global p-value
+ggsave("~/Desktop/Melanoma/Figure5a.pdf", device = "pdf", width = 8, height = 8, units = "cm")
 ```
+
 ```{r}
 my_comparisons <- list( c("0", "1"), c("1", "2"), c("2", "3") )
 tilCount$MIAScore <- as.factor(tilCount$MIAScore)
@@ -190,9 +192,11 @@ g2<- ggplot(tilCount[!is.na(tilCount$MIAScore), ], aes(x=MIAScore, y=Signature))
   xlab("MIA score (AVAST-M Skin)")+
   ylab("Weighted Cam_121 score (stand.)")+
   geom_hline(yintercept = quantile(tilCount$Signature, 0.33), color = "grey", linetype = "longdash")+
-  ggpubr::stat_compare_means(comparisons = my_comparisons, method = "t.test")+ # Add pairwise comparisons p-value
-  ggpubr::stat_compare_means(label.y = 6, method = "anova")     # Add global p-value
-ggsave("Cam_121_MIAScore_AVAST-M.png", device = "png", units = "cm", width = 8)
+  theme(text=element_text(size=7,  family="sans"))+
+  ggpubr::stat_compare_means(comparisons = my_comparisons, method = "t.test", size = 2.5, family="sans")+ # Add pairwise comparisons p-value
+  ggpubr::stat_compare_means(label.y = 6, method = "anova", size = 2.5, family="sans")
+     # Add global p-value
+ggsave("~/Desktop/Melanoma/Figure5c.pdf", device = "pdf", width = 8, height = 8, units = "cm")
 
 ```
 ```{r}
@@ -231,17 +235,19 @@ g3<-ggplot(tilCountFile, aes(x=tils, y=cam121score))+
   xlab("Clark Score (LMC)")+
   ylab("Weighted Cam_121 score (stand.)")+
   geom_hline(yintercept = -0.38, color = "grey", linetype = "longdash")+
-  ggpubr::stat_compare_means(comparisons = my_comparisons, method = "t.test")+ # Add pairwise comparisons p-value
-  ggpubr::stat_compare_means(label.y = 6, method = "anova")     # Add global p-value
-ggsave("Cam_121_ClarkScore_Leeds.png", device = "png", width = 8, units = "cm")
+  theme(text=element_text(size=7,  family="sans"))+
+  ggpubr::stat_compare_means(comparisons = my_comparisons, method = "t.test", size = 2.5, family="sans")+ # Add pairwise comparisons p-value
+  ggpubr::stat_compare_means(label.y = 6, method = "anova", size = 2.5, family="sans")
+     # Add global p-value
+ggsave("~/Desktop/Melanoma/Figure5b.pdf", device = "pdf", width = 8, height = 8, units = "cm")
 ```
 ```{r}
 g3
 ```
 ```{r}
-ggpubr::ggarrange(g1, g3, g2, labels = c("A", "B", "C"), ncol = 2, nrow = 2, hjust = c(0.1, 0.1, 0.1))
-ggsave("Cam_121_TILCount.pdf", device = "pdf", units='cm', width = 16, height = 16)
-ggsave("Cam_121_TILCount.png", device = "png", units='cm', width = 16, height = 16 )
+# ggpubr::ggarrange(g1, g3, g2, labels = c("A", "B", "C"), ncol = 2, nrow = 2, hjust = c(0.1, 0.1, 0.1))
+# ggsave("Cam_121_TILCount.pdf", device = "pdf", units='cm', width = 16, height = 16)
+# ggsave("Cam_121_TILCount.png", device = "png", units='cm', width = 16, height = 16 )
 ```
 
 ```{r}
