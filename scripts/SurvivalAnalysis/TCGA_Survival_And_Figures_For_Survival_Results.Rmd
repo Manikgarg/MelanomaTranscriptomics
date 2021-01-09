@@ -54,7 +54,8 @@ Regional Cutaneous or Subcutaneous Tissue (includes satellite and in-transit met
                                                                                      
 ```{r}
 cam_121_genes = read.table("~/Downloads/matched-gene-list.tsv", sep = "\t", quote = "", header = TRUE)
-rawExpressionDataSubsetTissue = rawExpressionDataSubset[rownames(rawExpressionDataSubset) %in% cam_121_genes$mappedGeneId, colnames(rawExpressionDataSubset) %in% rownames(clinicalDataSampleId)[clinicalDataSampleId$tumor_tissue_site %in% c("Regional Cutaneous or Subcutaneous Tissue (includes satellite and in-transit metastasis)", "Primary Tumor")]]
+rawExpressionDataSubsetTissue = rawExpressionDataSubset[rownames(rawExpressionDataSubset) %in% cam_121_genes$mappedGeneId, colnames(rawExpressionDataSubset) %in% rownames(clinicalDataSampleId)[clinicalDataSampleId$tumor_tissue_site %in% #c("Regional Lymph Node")]] 
+                                                                                                                                                                                                    c("Regional Cutaneous or Subcutaneous Tissue (includes satellite and in-transit metastasis)", "Primary Tumor")]]
 ```
 
 ```{r}
@@ -126,22 +127,37 @@ summary(coxph(survival_d_rc ~ Group+gender+age_at_initial_pathologic_diagnosis+p
 library(survminer)
 fit <- survfit( survival_d_rc ~ Group, 
       data = clinicalData )
-ggsurv <- ggsurvplot(fit, data = clinicalData, 
-                     palette = "npg",                              # jco palette
-                     pval = TRUE, pval.coord = c(0.5, 0.25),        # Add p-value
-                     risk.table = TRUE,                            # Add risk table
-                     font.main = c(10),
-   font.x = 10,
-   font.y = 10,
-   font.tickslab = 10,
-   font.legend = 10,
-   fontsize = 10,
-   pval.size=3.5)
+# ggsurv <- ggsurvplot(fit, data = clinicalData, 
+#                      palette = "npg",                              # jco palette
+#                      pval = TRUE, pval.coord = c(0.5, 0.25),        # Add p-value
+#                      risk.table = TRUE,                            # Add risk table
+#                      font.main = c(7),
+#    font.x = 7,
+#    font.y = 7,
+#    font.tickslab = 7,
+#    font.legend = 7,
+#    fontsize = 7,
+#    font.family="sans",
+#    pval.size=2.5)#+
+#    #theme(text=element_text(size=7,  family="sans"), legend.position = "right")
+# 
+# ggsurv
+# #ggarrange(ggsurv$plot, ggsurv$table, heights = c(2, 0.7),
+# #          ncol = 1, nrow = 2, align = "v")
+# ggsave("~/Desktop/Melanoma/Figure2h.pdf",plot = ggsurv$plot, device = "pdf", width = 8, height=8, units = "cm")
 
-ggsurv
-#ggarrange(ggsurv$plot, ggsurv$table, heights = c(2, 0.7),
-#          ncol = 1, nrow = 2, align = "v")
-ggsave("Cam_121_TCGA_Ln_OS.png",plot = ggsurv$plot, device = "png", width = 16, units = "cm")
+# KM curve for signature
+pdf("~/Desktop/Melanoma/Figure2h.pdf", width = 3.15, height = 3.15, family="sans", pointsize=7)
+plot(fit, col = c("red", "blue"), xlab = "Time (years)", ylab = "Survival probability", lwd=2)
+pvalStr = survminer::surv_pvalue(fit = fit, data = clinicalData)$pval
+if(pvalStr>=0.0001){
+   pvalStr=round(pvalStr, digits = 4)
+} else{
+  pvalStr=formatC(pvalStr, format = "e", digits = 2) 
+}
+text(x= 5, y=0.1, paste0("p=", pvalStr))
+legend("topright", col = c("red", "blue"), legend = c("High", "Low"), lty = 1, lwd=2)
+dev.off()
 ```
 ```{r}
 summary(fit)
@@ -187,24 +203,34 @@ tcga_surv$Group
 
 ```{r}
 tcga_surv$Group <- factor(tcga_surv$Group, levels = c("Signature+Sex+Age+Breslow", "Signature+Sex+Age+Stage", "Signature"))
+
+if(pvalStr>=0.0001){
+   pvalStr=round(pvalStr, digits = 4)
+} else{
+  pvalStr=formatC(pvalStr, format = "e", digits = 2) 
+}
+
 g1 <- ggplot(data=tcga_surv,
        aes(x = Group,y = HR, ymin = low, ymax = high, label = #paste("p-value=",formatC(pval,format="e"), sep = "")))+
-   paste("p=",round(pval, 4), sep = "")))+
+   ifelse(pval>=0.0001, paste("p=",round(pval, 4), sep = ""), paste("p=",formatC(pval, format = "e", digits = 2), sep = ""))))+
    geom_pointrange()+
    geom_hline(yintercept =1, linetype=2)+
    xlab('')+
+   ylab('')+
    ylab("Hazard Ratio (95% Confidence Interval)")+
    geom_errorbar(aes(ymin=low, ymax=high),width=0.2,cex=1)+ 
    ylim(c(0,4))+
-   geom_text(hjust = -.05, vjust=-0.55)+
+   geom_text(hjust = -.05, vjust=-1.25, size=2.5,  family="sans")+
    coord_flip()+
-   theme_set(ggpubr::theme_pubr(base_size=10, legend='bottom'))
-ggsave("FP_Cam_121_TCGA_Skin_OS.png", device = "png", width = 16, units = "cm", )
+   theme(text=element_text(size=7,  family="sans"))
+   #theme_set(ggpubr::theme_pubr(base_size=10, legend='bottom'))
+ggsave("~/Desktop/Melanoma/Figure2i.pdf", device = "pdf", width = 10, units = "cm", height=4.5)
 ```
+
 ```{r}
-ggarrange(ggsurv$plot, g1, heights = c(1, 1),
-          ncol = 1, nrow = 2, align = "v", font.label = list(size = 10))
-ggsave("Cam_121_TCGA_Skin_OS.png", device = "png", width = 16, units = "cm")
+# ggarrange(ggsurv$plot, g1, heights = c(1, 1),
+#           ncol = 1, nrow = 2, align = "v", font.label = list(size = 10))
+# ggsave("Cam_121_TCGA_Skin_OS.png", device = "png", width = 16, units = "cm")
 ```
 ```{r}
 #amgpData = read.csv("~/Downloads/AMGPts_CAM121.csv")
@@ -226,17 +252,30 @@ survival_Object = Surv(data$msstime, as.numeric(factor(data$died_mm)))
 fit = survfit(survival_Object ~ factor(data$Group))
 
 #fit <- survfit(survObj ~ Group, data = data)
-ggsurv <- ggsurvplot(fit, data = data, 
-                     palette = "npg",                              # jco palette
-                     pval = TRUE, pval.coord = c(0.5, 0.25),        # Add p-value
-                     risk.table = FALSE,                            # Add risk table
-                     font.main = c(10),
-   font.x = 10,
-   font.y = 10,
-   font.tickslab = 10,
-   font.legend = 10,
-   fontsize = 10,
-   pval.size=3.5)
+# ggsurv <- ggsurvplot(fit, data = data, 
+#                      palette = "npg",                              # jco palette
+#                      pval = TRUE, pval.coord = c(0.5, 0.25),        # Add p-value
+#                      risk.table = FALSE,                            # Add risk table
+#                      font.main = c(10),
+#    font.x = 10,
+#    font.y = 10,
+#    font.tickslab = 10,
+#    font.legend = 10,
+#    fontsize = 10,
+#    pval.size=3.5)
+
+# KM curve for signature
+pdf("~/Desktop/Melanoma/Figure2d.pdf", width = 3.15, height = 3.15, family="sans", pointsize=7)
+plot(fit, col = c("red", "blue"), xlab = "Time (years)", ylab = "Survival probability", lwd=2)
+pvalStr = survminer::surv_pvalue(fit = fit, data = data)$pval
+if(pvalStr>=0.0001){
+   pvalStr=round(pvalStr, digits = 4)
+} else{
+  pvalStr=formatC(pvalStr, format = "e", digits = 2) 
+}
+text(x= 5, y=0.1, paste0("p=", pvalStr))
+legend("topright", col = c("red", "blue"), legend = c("High", "Low"), lty = 1, lwd=2)
+dev.off()
 
 ## Forest plot
 leeds_surv = read.delim("~/Downloads/ForestPlot_Cam121_Cam70_LMC.txt")
@@ -249,21 +288,37 @@ leeds_surv$Group <- factor(leeds_surv$Group, levels = c("Cam_121+Sex+Age+Breslow
 #ggarrange(ggsurv$plot, ggsurv$table, heights = c(2, 0.7),
 #          ncol = 1, nrow = 2, align = "v")
 
+# g1 <- ggplot(data=leeds_surv,
+#        aes(x = Group,y = Hazard_Ratio, ymin = Lower_HazardRatio, ymax = Upper_HazardRatio, label = paste("p=",p_value, sep = "")))+
+#    geom_pointrange()+
+#    geom_hline(yintercept =1, linetype=2)+
+#    xlab('')+
+#    ylab("Hazard Ratio (95% Confidence Interval)")+
+#    geom_errorbar(aes(ymin=Lower_HazardRatio, ymax=Upper_HazardRatio),width=0.2,cex=1)+ 
+#    ylim(c(0,4))+
+#    geom_text(hjust = -.05, vjust=-0.55)+
+#    coord_flip()+
+#    theme_set(ggpubr::theme_pubr(base_size=10, legend='bottom'))
+# 
+# ggarrange(ggsurv$plot, g1, heights = c(1, 1),
+#           ncol = 1, nrow = 2, align = "v", font.label = list(size = 10))
+# ggsave("Cam_121_Leeds_Skin_MSS.png", device = "png", width = 16, units = "cm")
+
 g1 <- ggplot(data=leeds_surv,
-       aes(x = Group,y = Hazard_Ratio, ymin = Lower_HazardRatio, ymax = Upper_HazardRatio, label = paste("p=",p_value, sep = "")))+
+       aes(x = Group,y = Hazard_Ratio, ymin = Lower_HazardRatio, ymax = Upper_HazardRatio, label = #paste("p-value=",formatC(pval,format="e"), sep = "")))+
+   ifelse(p_value>=0.0001, paste("p=",round(p_value, 4), sep = ""), paste("p=",formatC(p_value, format = "e", digits = 2), sep = ""))))+
    geom_pointrange()+
    geom_hline(yintercept =1, linetype=2)+
    xlab('')+
-   ylab("Hazard Ratio (95% Confidence Interval)")+
+   ylab('')+
+   #ylab("Hazard Ratio (95% Confidence Interval)")+
    geom_errorbar(aes(ymin=Lower_HazardRatio, ymax=Upper_HazardRatio),width=0.2,cex=1)+ 
    ylim(c(0,4))+
-   geom_text(hjust = -.05, vjust=-0.55)+
+   geom_text(hjust = -.05, vjust=-1.25, size=2.5,  family="sans")+
    coord_flip()+
-   theme_set(ggpubr::theme_pubr(base_size=10, legend='bottom'))
-
-ggarrange(ggsurv$plot, g1, heights = c(1, 1),
-          ncol = 1, nrow = 2, align = "v", font.label = list(size = 10))
-ggsave("Cam_121_Leeds_Skin_MSS.png", device = "png", width = 16, units = "cm")
+   theme(text=element_text(size=7,  family="sans"))
+   #theme_set(ggpubr::theme_pubr(base_size=10, legend='bottom'))
+ggsave("~/Desktop/Melanoma/Figure2e.pdf", device = "pdf", width = 10, units = "cm", height=4.5)
 ```
 
 ## Lund's data
@@ -380,6 +435,44 @@ clinicalData$survival_rd_ltrc = Surv(time  = as.numeric(difftime(clinicalData$DO
 ```
 
 ```{r}
+fit = survfit(survival_d_ltrc~as.factor(Group), data = clinicalData)
+survivalModel<-coxph(survival_d_ltrc~as.factor(Group), data = clinicalData)
+x <- summary(survivalModel)
+pvalStr<- signif(x$coef[1, ncol(x$coef)], digits = 5)
+#survminer::surv_pvalue(fit = fit, data = clinicalData)$pval
+# KM curve for signature
+pdf("~/Desktop/Melanoma/Figure1a.pdf", width = 3.15, height = 3.15, family="sans", pointsize=7)
+plot(fit, col = c("red", "blue"), xlab = "Time (years)", ylab = "Survival probability", lwd=2)
+if(pvalStr>=0.0001){
+   pvalStr=round(pvalStr, digits = 4)
+} else{
+  pvalStr=formatC(pvalStr, format = "e", digits = 2) 
+}
+text(x= 5, y=0.1, paste0("p=", pvalStr))
+legend("topright", col = c("red", "blue"), legend = c("High", "Low"), lty = 1, lwd=2)
+dev.off()
+```
+
+```{r}
+fit = survfit(survival_rd_ltrc~as.factor(Group), data = clinicalData)
+survivalModel<-coxph(survival_rd_ltrc~as.factor(Group), data = clinicalData)
+x <- summary(survivalModel)
+pvalStr<- signif(x$coef[1, ncol(x$coef)], digits = 5)
+#survminer::surv_pvalue(fit = fit, data = clinicalData)$pval
+# KM curve for signature
+pdf("~/Desktop/Melanoma/Figure1b.pdf", width = 3.15, height = 3.15, family="sans", pointsize=7)
+plot(fit, col = c("red", "blue"), xlab = "Time (years)", ylab = "Survival probability", lwd=2)
+if(pvalStr>=0.0001){
+   pvalStr=round(pvalStr, digits = 4)
+} else{
+  pvalStr=formatC(pvalStr, format = "e", digits = 2) 
+}
+text(x= 5, y=0.1, paste0("p=", pvalStr))
+legend("topright", col = c("red", "blue"), legend = c("High", "Low"), lty = 1, lwd=2)
+dev.off()
+```
+
+```{r}
 summary(coxph(survival_d_ltrc~Signature+Sex+Age+as.numeric(Nclass)+as.character(Stage)+ECOG+treatment+ClarkScore,
              data=clinicalData))
 os = read.table("~/Downloads/SurvivalResults_Signature_overlap_DASLarray_genes_OS_Weighted_median_3.txt", sep = "\t", header = TRUE, quote = "")
@@ -445,59 +538,61 @@ df$Group = as.factor(df$Group)
 df$Group = factor(df$Group, levels = rev(levels(df$Group)))
 df$Event = as.factor(df$Event)
 
-g1 <- ggplot(data=df[df$Event=="OS", ],
-       aes(x = Group,y = as.numeric(Hazard_Ratio), ymin = as.numeric(Lower_HazardRatio), ymax = as.numeric(Upper_HazardRatio), 
-           #color = Event,
-           label = paste("p=",p_value, sep = "")))+
-   geom_pointrange()+
-   geom_hline(yintercept =1, linetype=2)+
-   xlab('')+
-   ylab("Hazard Ratio (95% Confidence Interval)")+
-   geom_errorbar(aes(ymin=as.numeric(Lower_HazardRatio), ymax=as.numeric(Upper_HazardRatio)),width=0.1,cex=1)+ 
-   geom_text(hjust = -.05, vjust=-1)+
-   #scale_y_continuous()+
-   ylim(c(0,4))+
-   #scale_color_brewer(type = "qual", palette = "Set2")+
-   coord_flip()+
-   theme_set(ggpubr::theme_pubr(base_size=10, legend='bottom'))
+# g1 <- ggplot(data=df[df$Event=="OS", ],
+#        aes(x = Group,y = as.numeric(Hazard_Ratio), ymin = as.numeric(Lower_HazardRatio), ymax = as.numeric(Upper_HazardRatio), 
+#            #color = Event,
+#            label = paste("p=",p_value, sep = "")))+
+#    geom_pointrange()+
+#    geom_hline(yintercept =1, linetype=2)+
+#    xlab('')+
+#    ylab("Hazard Ratio (95% Confidence Interval)")+
+#    geom_errorbar(aes(ymin=as.numeric(Lower_HazardRatio), ymax=as.numeric(Upper_HazardRatio)),width=0.1,cex=1)+ 
+#    geom_text(hjust = -.05, vjust=-1)+
+#    #scale_y_continuous()+
+#    ylim(c(0,4))+
+#    #scale_color_brewer(type = "qual", palette = "Set2")+
+#    coord_flip()+
+#    theme_set(ggpubr::theme_pubr(base_size=10, legend='bottom'))
+# 
+# g2 <- ggplot(data=df[df$Event=="PFS", ],
+#        aes(x = Group,y = as.numeric(Hazard_Ratio), ymin = as.numeric(Lower_HazardRatio), ymax = as.numeric(Upper_HazardRatio), 
+#            #color = Event,
+#            label = paste("p=",p_value, sep = "")))+
+#    geom_pointrange()+
+#    geom_hline(yintercept =1, linetype=2)+
+#    xlab('')+
+#    ylab("Hazard Ratio (95% Confidence Interval)")+
+#    geom_errorbar(aes(ymin=as.numeric(Lower_HazardRatio), ymax=as.numeric(Upper_HazardRatio)),width=0.1,cex=1)+ 
+#    geom_text(hjust = -.05, vjust=-1)+
+#    #scale_y_continuous()+
+#    ylim(c(0,4))+
+#    #scale_color_brewer(type = "qual", palette = "Set2")+
+#    coord_flip()+
+#    theme_set(ggpubr::theme_pubr(base_size=10, legend='bottom'))
 
-g2 <- ggplot(data=df[df$Event=="PFS", ],
-       aes(x = Group,y = as.numeric(Hazard_Ratio), ymin = as.numeric(Lower_HazardRatio), ymax = as.numeric(Upper_HazardRatio), 
-           #color = Event,
-           label = paste("p=",p_value, sep = "")))+
-   geom_pointrange()+
-   geom_hline(yintercept =1, linetype=2)+
-   xlab('')+
-   ylab("Hazard Ratio (95% Confidence Interval)")+
-   geom_errorbar(aes(ymin=as.numeric(Lower_HazardRatio), ymax=as.numeric(Upper_HazardRatio)),width=0.1,cex=1)+ 
-   geom_text(hjust = -.05, vjust=-1)+
-   #scale_y_continuous()+
-   ylim(c(0,4))+
-   #scale_color_brewer(type = "qual", palette = "Set2")+
-   coord_flip()+
-   theme_set(ggpubr::theme_pubr(base_size=10, legend='bottom'))
-
-
+df$p_value<-as.numeric(df$p_value)
 g3 <- ggplot(data=df,
        aes(x = Group,y = as.numeric(Hazard_Ratio), ymin = as.numeric(Lower_HazardRatio), ymax = as.numeric(Upper_HazardRatio), 
            color = Event,
-           label = paste("p=",p_value, sep = "")))+
+           label = ifelse(p_value>=0.0001, paste("p=",round(p_value, 4), sep = ""), paste("p=",formatC(p_value, format = "e", digits = 2), sep = ""))))+
     geom_pointrange(position=position_dodge(width=0.5))+
     geom_hline(yintercept =1, linetype=2)+
     xlab('')+
     ylab("Hazard Ratio (95% Confidence Interval)")+
     geom_errorbar(aes(ymin=as.numeric(Lower_HazardRatio), ymax=as.numeric(Upper_HazardRatio)),width=0.1,cex=1, position=position_dodge(width=0.5))+ 
-    geom_text(hjust = -.05, vjust=-1.5, position=position_dodge(width=0.5))+
+    geom_text(hjust = -0.5, vjust=-0.5, position=position_dodge(width=0.5), size=2.5,  family="sans")+
     #scale_y_continuous()+
     ylim(c(0,4))+
     scale_color_brewer(type = "qual", palette = "Set2")+
     coord_flip()+
-    theme_set(ggpubr::theme_pubr(base_size=10, legend='bottom'))
+    theme(text=element_text(size=7,  family="sans"), legend.position = "top")
+   #theme_set(ggpubr::theme_pubr(base_size=10, legend='bottom'))
+
    
 #ggarrange(g1, g2, align = "h", ncol = 1, nrow = 2, heights = c(4, 4))
-ggsave(plot = g1, filename = "Cam_121_OS.png", device = "png", width = 16, units = "cm")
-ggsave(plot = g2, filename = "Cam_121_PFS.png", device = "png", width = 16, units = "cm")
-ggsave(plot = g3, filename = "Cam_121_OS_PFS.png", device = "png", width = 16, height = 16,  units = "cm")
+# ggsave(plot = g1, filename = "Cam_121_OS.png", device = "png", width = 16, units = "cm")
+# ggsave(plot = g2, filename = "Cam_121_PFS.png", device = "png", width = 16, units = "cm")
+ggsave("~/Desktop/Melanoma/Figure1c.pdf", device = "pdf", width = 10, units = "cm", height=12)
 ```
 
 ```{r}
@@ -723,23 +818,65 @@ df$Group = as.factor(df$Group)
 df$Group = factor(df$Group, levels = c("Cam_121+Sex+Age+Stage+\nECOG+treatment+Nclass", "Cam_121+Treatment","Cam_121+Stage","Cam_121+Sex","Cam_121+ECOG","Cam_121+Age","Cam_121+Nclass","Cam_121"))
 df$Event = as.factor(df$Event)
 
-g6 <- ggplot(data=df,
+# g6 <- ggplot(data=df,
+#        aes(x = Group,y = as.numeric(Hazard_Ratio), ymin = as.numeric(Lower_HazardRatio), ymax = as.numeric(Upper_HazardRatio), 
+#            color = Event,
+#            label = paste("p=",p_value, sep = "")))+
+#     geom_pointrange(position=position_dodge(width=0.5))+
+#     geom_hline(yintercept =1, linetype=2)+
+#     xlab('')+
+#     ylab("Hazard Ratio (95% Confidence Interval)")+
+#     geom_errorbar(aes(ymin=as.numeric(Lower_HazardRatio), ymax=as.numeric(Upper_HazardRatio)),width=0.1,cex=1, position=position_dodge(width=0.5))+ 
+#     geom_text(hjust = -.05, vjust=-1, position=position_dodge(width=0.5))+
+#     #scale_y_continuous()+
+#     ylim(c(0,4))+
+#     scale_color_brewer(type = "qual", palette = "Set2")+
+#     coord_flip()+
+#     theme_set(ggpubr::theme_pubr(base_size=10, legend='bottom'))
+#    
+# #ggarrange(g1, g2, align = "h", ncol = 1, nrow = 2, heights = c(4, 4))
+# ggsave(plot = g6, filename = "Cam_121_Ln_OS.png", device = "png", width = 16, height = 12, units = "cm")
+
+g3 <- ggplot(data=df[df$Group%in%c("Cam_121+Sex+Age+Stage+\nECOG+treatment+Nclass", "Cam_121+Stage","Cam_121+Age","Cam_121+Nclass","Cam_121"), ],
        aes(x = Group,y = as.numeric(Hazard_Ratio), ymin = as.numeric(Lower_HazardRatio), ymax = as.numeric(Upper_HazardRatio), 
            color = Event,
-           label = paste("p=",p_value, sep = "")))+
+           label = ifelse(p_value>=0.0001, paste("p=",round(p_value, 4), sep = ""), paste("p=",formatC(p_value, format = "e", digits = 2), sep = ""))))+
     geom_pointrange(position=position_dodge(width=0.5))+
     geom_hline(yintercept =1, linetype=2)+
     xlab('')+
-    ylab("Hazard Ratio (95% Confidence Interval)")+
-    geom_errorbar(aes(ymin=as.numeric(Lower_HazardRatio), ymax=as.numeric(Upper_HazardRatio)),width=0.1,cex=1, position=position_dodge(width=0.5))+ 
-    geom_text(hjust = -.05, vjust=-1, position=position_dodge(width=0.5))+
+    ylab('')+
+    geom_errorbar(aes(ymin=as.numeric(Lower_HazardRatio), ymax=as.numeric(Upper_HazardRatio)),width=0.2,cex=1, position=position_dodge(width=0.5))+ 
+    geom_text(hjust = -0.5, vjust=-0.5, position=position_dodge(width=0.5), size=2.5,  family="sans")+
     #scale_y_continuous()+
     ylim(c(0,4))+
     scale_color_brewer(type = "qual", palette = "Set2")+
     coord_flip()+
-    theme_set(ggpubr::theme_pubr(base_size=10, legend='bottom'))
-   
+    theme(text=element_text(size=7,  family="sans"), legend.position = c(0.9, 0.2))
+   #theme_set(ggpubr::theme_pubr(base_size=10, legend='bottom'))
+ggsave("~/Desktop/Melanoma/Figure2e.pdf", device = "pdf", width = 10, units = "cm", height=4.5) 
 #ggarrange(g1, g2, align = "h", ncol = 1, nrow = 2, heights = c(4, 4))
-ggsave(plot = g6, filename = "Cam_121_Ln_OS.png", device = "png", width = 16, height = 12, units = "cm")
+# ggsave(plot = g1, filename = "Cam_121_OS.png", device = "png", width = 16, units = "cm")
+# ggsave(plot = g2, filename = "Cam_121_PFS.png", device = "png", width = 16, units = "cm")
+ggsave("~/Desktop/Melanoma/Figure2c.pdf", device = "pdf", width = 10, units = "cm", height=7)
+```
 
+```
+
+```{r}
+fit = survfit(survival_rd_ltrc~as.factor(Group), data = clinicalData)
+survivalModel<-coxph(survival_rd_ltrc~as.factor(Group), data = clinicalData)
+x <- summary(survivalModel)
+pvalStr<- signif(x$coef[1, ncol(x$coef)], digits = 5)
+#survminer::surv_pvalue(fit = fit, data = clinicalData)$pval
+# KM curve for signature
+pdf("~/Desktop/Melanoma/Figure1b.pdf", width = 3.15, height = 3.15, family="sans", pointsize=7)
+plot(fit, col = c("red", "blue"), xlab = "Time (years)", ylab = "Survival probability", lwd=2)
+if(pvalStr>=0.0001){
+   pvalStr=round(pvalStr, digits = 4)
+} else{
+  pvalStr=formatC(pvalStr, format = "e", digits = 2) 
+}
+text(x= 5, y=0.1, paste0("p=", pvalStr))
+legend("topright", col = c("red", "blue"), legend = c("High", "Low"), lty = 1, lwd=2)
+dev.off()
 ```
