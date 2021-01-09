@@ -860,23 +860,22 @@ ggsave("~/Desktop/Melanoma/Figure2e.pdf", device = "pdf", width = 10, units = "c
 ggsave("~/Desktop/Melanoma/Figure2c.pdf", device = "pdf", width = 10, units = "cm", height=7)
 ```
 
-```
 
 ```{r}
-fit = survfit(survival_rd_ltrc~as.factor(Group), data = clinicalData)
-survivalModel<-coxph(survival_rd_ltrc~as.factor(Group), data = clinicalData)
-x <- summary(survivalModel)
-pvalStr<- signif(x$coef[1, ncol(x$coef)], digits = 5)
-#survminer::surv_pvalue(fit = fit, data = clinicalData)$pval
-# KM curve for signature
-pdf("~/Desktop/Melanoma/Figure1b.pdf", width = 3.15, height = 3.15, family="sans", pointsize=7)
-plot(fit, col = c("red", "blue"), xlab = "Time (years)", ylab = "Survival probability", lwd=2)
-if(pvalStr>=0.0001){
-   pvalStr=round(pvalStr, digits = 4)
-} else{
-  pvalStr=formatC(pvalStr, format = "e", digits = 2) 
-}
-text(x= 5, y=0.1, paste0("p=", pvalStr))
-legend("topright", col = c("red", "blue"), legend = c("High", "Low"), lty = 1, lwd=2)
-dev.off()
+# fit = survfit(survival_rd_ltrc~as.factor(Group), data = clinicalData)
+# survivalModel<-coxph(survival_rd_ltrc~as.factor(Group), data = clinicalData)
+# x <- summary(survivalModel)
+# pvalStr<- signif(x$coef[1, ncol(x$coef)], digits = 5)
+# #survminer::surv_pvalue(fit = fit, data = clinicalData)$pval
+# # KM curve for signature
+# pdf("~/Desktop/Melanoma/Figure1b.pdf", width = 3.15, height = 3.15, family="sans", pointsize=7)
+# plot(fit, col = c("red", "blue"), xlab = "Time (years)", ylab = "Survival probability", lwd=2)
+# if(pvalStr>=0.0001){
+#    pvalStr=round(pvalStr, digits = 4)
+# } else{
+#   pvalStr=formatC(pvalStr, format = "e", digits = 2)
+# }
+# text(x= 5, y=0.1, paste0("p=", pvalStr))
+# legend("topright", col = c("red", "blue"), legend = c("High", "Low"), lty = 1, lwd=2)
+# dev.off()
 ```
