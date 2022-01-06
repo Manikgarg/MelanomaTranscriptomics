@@ -25,12 +25,12 @@ for (temp in tempFiles) {
 
 currentResults = currentResults[currentResults$PCA!=TRUE, ]
 currentResults$Signature_f = as.factor(currentResults$Signature)
-levels(currentResults$Signature_f) = c("Clinical Covariates", "DecisionDx-\nMelanoma",
+levels(currentResults$Signature_f) = c("Clinical Covariates", "Gerami_27",
                                      "LMC_150", "Cam_121", "Cam_121+\nClinical Covariates")
 currentResults$Signature_f <- factor(currentResults$Signature_f, 
                                      levels = c("Cam_121+\nClinical Covariates", 
                                                 "Cam_121", "Clinical Covariates", 
-                                                "LMC_150", "DecisionDx-\nMelanoma"))
+                                                "LMC_150", "Gerami_27"))
 
 currentResults$Resampling <- as.factor(currentResults$Resampling)
 levels(currentResults$Resampling) <- c("Bootstrap", "10-Fold CV")
@@ -107,16 +107,16 @@ tStatistics = data.frame()
 for(metric in c("ROC", "Sens", "Spec")){
   tStatistic1 = t.test(x = currentResults[currentResults$Signature_f == "Cam_121+\nClinical Covariates", metric], y = currentResults[currentResults$Signature_f == "Clinical Covariates", metric], var.equal = FALSE, paired = FALSE, alternative = "greater")
   tStatistic2 = t.test(x = currentResults[(currentResults$Signature_f == "Cam_121") & (currentResults$Resampling == "10-Fold CV"), metric], y = currentResults[(currentResults$Signature_f == "Clinical Covariates") & (currentResults$Resampling == "10-Fold CV"), metric], var.equal = FALSE, paired = FALSE, alternative = "greater")
-  tStatistic3 = t.test(x = currentResults[(currentResults$Signature_f == "DecisionDx-\nMelanoma") & (currentResults$Resampling == "10-Fold CV"), metric], y = currentResults[(currentResults$Signature_f == "Clinical Covariates") & (currentResults$Resampling == "10-Fold CV"), metric], var.equal = FALSE, paired = FALSE, alternative = "greater")
+  tStatistic3 = t.test(x = currentResults[(currentResults$Signature_f == "Gerami_27") & (currentResults$Resampling == "10-Fold CV"), metric], y = currentResults[(currentResults$Signature_f == "Clinical Covariates") & (currentResults$Resampling == "10-Fold CV"), metric], var.equal = FALSE, paired = FALSE, alternative = "greater")
   tStatistic4 = t.test(x = currentResults[(currentResults$Signature_f == "LMC_150") & (currentResults$Resampling == "10-Fold CV"), metric], y = currentResults[(currentResults$Signature_f == "Clinical Covariates") & (currentResults$Resampling == "10-Fold CV"), metric], var.equal = FALSE, paired = FALSE, alternative = "greater")
-  tStatistic5 = t.test(x = currentResults[(currentResults$Signature_f == "Cam_121") & (currentResults$Resampling == "10-Fold CV"), metric], y = currentResults[(currentResults$Signature_f == "DecisionDx-\nMelanoma") & (currentResults$Resampling == "10-Fold CV"), metric], var.equal = FALSE, paired = FALSE, alternative = "greater")
+  tStatistic5 = t.test(x = currentResults[(currentResults$Signature_f == "Cam_121") & (currentResults$Resampling == "10-Fold CV"), metric], y = currentResults[(currentResults$Signature_f == "Gerami_27") & (currentResults$Resampling == "10-Fold CV"), metric], var.equal = FALSE, paired = FALSE, alternative = "greater")
   tStatistic6 = t.test(x = currentResults[(currentResults$Signature_f == "Cam_121") & (currentResults$Resampling == "10-Fold CV"), metric], y = currentResults[(currentResults$Signature_f == "LMC_150") & (currentResults$Resampling == "10-Fold CV"), metric], var.equal = FALSE, paired = FALSE, alternative = "greater")
 
   tStatistic = data.frame("Cam_121_Cov_Vs_Cov" = c(tStatistic1[["statistic"]][["t"]], tStatistic1[["p.value"]], tStatistic1[["conf.int"]], tStatistic1[["stderr"]]),
                           "Cam_121_Vs_Cov" = c(tStatistic2[["statistic"]][["t"]], tStatistic2[["p.value"]], tStatistic2[["conf.int"]], tStatistic2[["stderr"]]),
-                          "DecisionDxMelanoma_Vs_Cov" = c(tStatistic3[["statistic"]][["t"]], tStatistic3[["p.value"]], tStatistic3[["conf.int"]], tStatistic3[["stderr"]]), 
+                          "Gerami_27_Vs_Cov" = c(tStatistic3[["statistic"]][["t"]], tStatistic3[["p.value"]], tStatistic3[["conf.int"]], tStatistic3[["stderr"]]), 
                           "LMC_150_Vs_Cov" = c(tStatistic4[["statistic"]][["t"]], tStatistic4[["p.value"]], tStatistic4[["conf.int"]], tStatistic4[["stderr"]]),
-                          "Cam_121_Vs_DecisionDxMelanoma" = c(tStatistic5[["statistic"]][["t"]], tStatistic5[["p.value"]], tStatistic5[["conf.int"]], tStatistic5[["stderr"]]),
+                          "Cam_121_Vs_Gerami_27" = c(tStatistic5[["statistic"]][["t"]], tStatistic5[["p.value"]], tStatistic5[["conf.int"]], tStatistic5[["stderr"]]),
                           "Cam_121_Vs_LMC_150" = c(tStatistic6[["statistic"]][["t"]], tStatistic6[["p.value"]], tStatistic6[["conf.int"]], tStatistic6[["stderr"]]))
   rownames(tStatistic) = paste(metric, c("t.statistic", "p.value", "conf.int1", "conf.int2", "SE"), sep = ".")
   tStatistics = rbind(tStatistics, tStatistic)
@@ -129,16 +129,16 @@ tStatistics = data.frame()
 for(metric in c("ROC", "Sens", "Spec")){
   tStatistic1 = t.test(x = currentResults[currentResults$Signature_f == "Cam_121+\nClinical Covariates", metric], y = currentResults[currentResults$Signature_f == "Clinical Covariates", metric], var.equal = FALSE, paired = FALSE, alternative = "greater")
   tStatistic2 = t.test(x = currentResults[(currentResults$Signature_f == "Cam_121") & (currentResults$Resampling == "Bootstrap"), metric], y = currentResults[(currentResults$Signature_f == "Clinical Covariates") & (currentResults$Resampling == "Bootstrap"), metric], var.equal = FALSE, paired = FALSE, alternative = "greater")
-  tStatistic3 = t.test(x = currentResults[(currentResults$Signature_f == "DecisionDx-\nMelanoma") & (currentResults$Resampling == "Bootstrap"), metric], y = currentResults[(currentResults$Signature_f == "Clinical Covariates") & (currentResults$Resampling == "Bootstrap"), metric], var.equal = FALSE, paired = FALSE, alternative = "greater")
+  tStatistic3 = t.test(x = currentResults[(currentResults$Signature_f == "Gerami_27") & (currentResults$Resampling == "Bootstrap"), metric], y = currentResults[(currentResults$Signature_f == "Clinical Covariates") & (currentResults$Resampling == "Bootstrap"), metric], var.equal = FALSE, paired = FALSE, alternative = "greater")
   tStatistic4 = t.test(x = currentResults[(currentResults$Signature_f == "LMC_150") & (currentResults$Resampling == "Bootstrap"), metric], y = currentResults[(currentResults$Signature_f == "Clinical Covariates") & (currentResults$Resampling == "Bootstrap"), metric], var.equal = FALSE, paired = FALSE, alternative = "greater")
-  tStatistic5 = t.test(x = currentResults[(currentResults$Signature_f == "Cam_121") & (currentResults$Resampling == "Bootstrap"), metric], y = currentResults[(currentResults$Signature_f == "DecisionDx-\nMelanoma") & (currentResults$Resampling == "Bootstrap"), metric], var.equal = FALSE, paired = FALSE, alternative = "greater")
+  tStatistic5 = t.test(x = currentResults[(currentResults$Signature_f == "Cam_121") & (currentResults$Resampling == "Bootstrap"), metric], y = currentResults[(currentResults$Signature_f == "Gerami_27") & (currentResults$Resampling == "Bootstrap"), metric], var.equal = FALSE, paired = FALSE, alternative = "greater")
   tStatistic6 = t.test(x = currentResults[(currentResults$Signature_f == "Cam_121") & (currentResults$Resampling == "Bootstrap"), metric], y = currentResults[(currentResults$Signature_f == "LMC_150") & (currentResults$Resampling == "Bootstrap"), metric], var.equal = FALSE, paired = FALSE, alternative = "greater")
   
   tStatistic = data.frame("Cam_121_Cov_Vs_Cov" = c(tStatistic1[["statistic"]][["t"]], tStatistic1[["p.value"]], tStatistic1[["conf.int"]], tStatistic1[["stderr"]]),
                           "Cam_121_Vs_Cov" = c(tStatistic2[["statistic"]][["t"]], tStatistic2[["p.value"]], tStatistic2[["conf.int"]], tStatistic2[["stderr"]]),
-                          "DecisionDxMelanoma_Vs_Cov" = c(tStatistic3[["statistic"]][["t"]], tStatistic3[["p.value"]], tStatistic3[["conf.int"]], tStatistic3[["stderr"]]), 
+                          "Gerami_27_Vs_Cov" = c(tStatistic3[["statistic"]][["t"]], tStatistic3[["p.value"]], tStatistic3[["conf.int"]], tStatistic3[["stderr"]]), 
                           "LMC_150_Vs_Cov" = c(tStatistic4[["statistic"]][["t"]], tStatistic4[["p.value"]], tStatistic4[["conf.int"]], tStatistic4[["stderr"]]),
-                          "Cam_121_Vs_DecisionDxMelanoma" = c(tStatistic5[["statistic"]][["t"]], tStatistic5[["p.value"]], tStatistic5[["conf.int"]], tStatistic5[["stderr"]]),
+                          "Cam_121_Vs_Gerami_27" = c(tStatistic5[["statistic"]][["t"]], tStatistic5[["p.value"]], tStatistic5[["conf.int"]], tStatistic5[["stderr"]]),
                           "Cam_121_Vs_LMC_150" = c(tStatistic6[["statistic"]][["t"]], tStatistic6[["p.value"]], tStatistic6[["conf.int"]], tStatistic6[["stderr"]]))
   rownames(tStatistic) = paste(metric, c("t.statistic", "p.value", "conf.int1", "conf.int2", "SE"), sep = ".")
   tStatistics = rbind(tStatistics, tStatistic)

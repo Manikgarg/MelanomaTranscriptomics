@@ -21,7 +21,7 @@ library(openxlsx)
 ```{r}
 #jt = read.xlsx("~/Downloads/AVAST-M_primaries_TILCountData_JT.xlsx")
 #ns = read.xlsx("~/Downloads/Scores_NS_V2.xlsx")
-jt_ns_sm_scores = read.table("~/Downloads/JT_NS_SM_Combined.txt", sep = "\t", header = TRUE, quote = "")
+jt_ns_sm_scores = read.table("../../JT_NS_SM_Combined.xls - JT_NS_SM.tsv", sep = "\t", header = TRUE, quote = "")
 ```
 
 ```{r}
@@ -162,6 +162,18 @@ combinedScore = data.frame("Scanned_file.me"= jt_ns_sm_scores$JT_Scanned_file.me
 cam_121 = read.table("~/Desktop/Melanoma//Cam_121_AvastM_Skin.tsv", sep = "\t", header = TRUE, quote = "")
 cam_121$Sample = rownames(cam_121)
 tilCount = merge(combinedScore, cam_121, by.x = "R.Seq_sampleID", by.y = "Sample")
+tilCount<-tilCount[!duplicated(tilCount$R.Seq_sampleID),]
+rownames(tilCount)<-tilCount$R.Seq_sampleID
+```
+
+#Load data for mapping event met yes vs no
+```{r}
+load('../../tcSkinEventMetNo_VS_tcSkinEventMetYes_CovariateCorrection.deseq2/de.Rdata')
+```
+
+```{r}
+clinicalData<-data.frame(colData(vsd))
+tilCount$EventMet<-clinicalData[rownames(tilCount), "EventMet"]
 ```
 
 ```{r}
@@ -169,7 +181,7 @@ my_comparisons <- list( c("absent", "nonbrisk"), c("nonbrisk", "brisk"), c("abse
 tilCount$ClarkScore <- as.factor(tilCount$ClarkScore)
 levels(tilCount$ClarkScore) <- c("absent", "nonbrisk", "brisk")
 #tilCount$JT_Clark_score <- factor(tilCount$JT_Clark_score, levels = c("absent", "nonbrisk", "brisk"))
-g1<- ggplot(tilCount[!is.na(tilCount$ClarkScore), ], aes(x=ClarkScore, y=Signature))+
+ggplot(tilCount[!is.na(tilCount$ClarkScore), ], aes(x=ClarkScore, y=Signature, color=EventMet))+
   geom_violin()+
   geom_jitter(height = 0, width = 0.1, alpha = 0.5)+
   #scale_fill_brewer(type="qual", palette = "Dark2", name = "Cam_121 risk group")+
@@ -178,14 +190,15 @@ g1<- ggplot(tilCount[!is.na(tilCount$ClarkScore), ], aes(x=ClarkScore, y=Signatu
   geom_hline(yintercept = quantile(tilCount$Signature, 0.33), color = "grey", linetype = "longdash")+
   theme(text=element_text(size=7,  family="sans"))+
   ggpubr::stat_compare_means(comparisons = my_comparisons, method = "t.test", size = 2.5, family="sans")+ # Add pairwise comparisons p-value
-  ggpubr::stat_compare_means(label.y = 6, method = "anova", size = 2.5, family="sans")     # Add global p-value
-ggsave("~/Desktop/Melanoma/Figure5a.pdf", device = "pdf", width = 8, height = 8, units = "cm")
+  ggpubr::stat_compare_means(label.y = 6, method = "anova", size = 2.5, family="sans")+
+  facet_wrap(~EventMet)# Add global p-value
+#ggsave("~/Desktop/Melanoma/Figure5a.pdf", device = "pdf", width = 8, height = 8, units = "cm")
 ```
 
 ```{r}
 my_comparisons <- list( c("0", "1"), c("1", "2"), c("2", "3") )
 tilCount$MIAScore <- as.factor(tilCount$MIAScore)
-g2<- ggplot(tilCount[!is.na(tilCount$MIAScore), ], aes(x=MIAScore, y=Signature))+
+ggplot(tilCount[!is.na(tilCount$MIAScore), ], aes(x=MIAScore, y=Signature, color=EventMet))+
   geom_violin()+
   geom_jitter(height = 0, width = 0.1, alpha = 0.5)+
   scale_fill_brewer(type="qual", palette = "Dark2", name = "MIA score")+
@@ -194,9 +207,10 @@ g2<- ggplot(tilCount[!is.na(tilCount$MIAScore), ], aes(x=MIAScore, y=Signature))
   geom_hline(yintercept = quantile(tilCount$Signature, 0.33), color = "grey", linetype = "longdash")+
   theme(text=element_text(size=7,  family="sans"))+
   ggpubr::stat_compare_means(comparisons = my_comparisons, method = "t.test", size = 2.5, family="sans")+ # Add pairwise comparisons p-value
-  ggpubr::stat_compare_means(label.y = 6, method = "anova", size = 2.5, family="sans")
+  ggpubr::stat_compare_means(label.y = 6, method = "anova", size = 2.5, family="sans")+
+  facet_wrap(~EventMet)
      # Add global p-value
-ggsave("~/Desktop/Melanoma/Figure5c.pdf", device = "pdf", width = 8, height = 8, units = "cm")
+#ggsave("~/Desktop/Melanoma/Figure5c.pdf", device = "pdf", width = 8, height = 8, units = "cm")
 
 ```
 ```{r}
