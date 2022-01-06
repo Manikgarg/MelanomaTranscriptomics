@@ -60,6 +60,26 @@ d1<- ggplot(currentResults, aes(x = ClassifierName, y = ROC, color = Resampling)
 ggsave("~/Desktop/Melanoma/Figure3e.pdf", device = "pdf", 
        width = 18, height = 8, units = "cm")
 
+d1_1<- ggplot(currentResults, aes(x = ClassifierName, y = ROC, color = Resampling))+
+  geom_point(size = 1, position=position_dodge(width=0.5))+
+  geom_errorbar(aes(ymin = ROC - ROCSD, 
+                    ymax = ROC + ROCSD), 
+                width = .1,
+                position=position_dodge(width=0.5)) +
+  scale_color_brewer(palette = "Set2", type = "qual", name="Resampling\nmethod")+
+  geom_hline(aes(yintercept=median, linetype=Resampling, color=Resampling), data=linesDf)+
+  scale_linetype(name="Median ROC")+
+  ylim(c(0, 1))+
+  ylab('AUROC')+
+  xlab('Classifier name')+
+  ggtitle("Training dataset = AVAST-M regional lymph nodes")+
+  theme(text=element_text(size=7,  family="sans"), legend.position = "right")+
+  #theme(axis.text.x = element_text(angle=90, hjust=1))+
+  facet_grid(.~Signature_f, scales = "free_x", drop = TRUE)
+#ggpubr::theme_pubr(base_size=10, legend='right', x.text.angle = 90)
+ggsave("~/Desktop/Melanoma/Figure3e.png", device = "png", 
+       width = 18, height = 8, units = "cm")
+
 linesDf<-currentResults%>%group_by(Signature_f, Resampling)%>%summarise(max=max(Sens), median=median(Sens), mean=mean(Sens))
 
 d2<- ggplot(currentResults, aes(x = ClassifierName, y = Sens, color = Resampling))+

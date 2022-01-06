@@ -1,0 +1,610 @@
+---
+title: "Consensus clustering"
+author: "Manik Garg"
+date: "11/05/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library("ggplot2")
+theme_set(ggpubr::theme_pubr(base_size=10, legend='bottom', x.text.angle = 45))
+```
+
+```{r}
+tissueCode = "Skin"
+#Extract the raw counts
+pathForDataSet = paste0("~/Desktop/Melanoma/deseq2Results/tc",tissueCode,"EventMetNo_VS_tc",tissueCode,"EventMetYes_CovariateCorrection.deseq2/de.rdata", sep = "")
+# Load the Gene to Group mappings
+geneToGroupMappings = read.table("~/Desktop/Melanoma/EventMet_Survival_Genes_ML_Individual_Published_Jeremie_WithoutLn_WithTopGenesByLfc_WithLund24Genes.txt", sep = "\t", header = TRUE, quote = "")
+```
+
+```{r}
+allSignatureGenes = data.frame("Genes" = c(as.character(geneToGroupMappings$Gene[geneToGroupMappings[["Signature_overlap_DASLarray_genes"]] == 1]),as.character(geneToGroupMappings$Gene[geneToGroupMappings[["LMC_150_genes"]] == 1]), as.character(geneToGroupMappings$Gene[geneToGroupMappings[["Gerami_genes"]] == 1])), 
+                               "Signature" = c(rep("Cam_121", length(as.character(geneToGroupMappings$Gene[geneToGroupMappings[["Signature_overlap_DASLarray_genes"]] == 1]))),
+                                               rep("LMC_150", length(as.character(geneToGroupMappings$Gene[geneToGroupMappings[["LMC_150_genes"]] == 1]))),
+                                               rep("Gerami_27", length(as.character(geneToGroupMappings$Gene[geneToGroupMappings[["Gerami_genes"]] == 1])))))
+```
+
+```{r}
+#Temporarily drop the factors
+allSignatureGenes[] <- lapply(allSignatureGenes, as.character)
+#Update the signature name based on the unique genes
+allSignatureGenes$Signature[allSignatureGenes$Genes %in% intersect(allSignatureGenes$Genes[allSignatureGenes$Signature == "LMC_150"], allSignatureGenes$Genes[allSignatureGenes$Signature == "Gerami_27"])] <- "LMC_150+Gerami_27"
+allSignatureGenes = unique(allSignatureGenes)
+#Change the signature column back to factor
+allSignatureGenes$Signature = as.factor(allSignatureGenes$Signature)
+```
+
+```{r}
+library("DESeq2")
+load(pathForDataSet)
+#Subset the VST normalized expression data to the genes belong to a particular "group"
+select = rownames(res.annot)[which(res.annot$Name %in% allSignatureGenes$Genes)]
+data = t(data.frame(assay(vsd)[select, ]))
+
+#Replace ENSEMBL IDs with corresponding gene names
+colnames(data) = res.annot$Name[which(rownames(res.annot) %in% select)]
+
+#Remove genes with duplicated names
+data = data[, !duplicated(colnames(data))]
+dim(data)
+
+#stand.fun = function(x){(x-mean(x,na.rm=TRUE))/sd(x,na.rm=TRUE)}
+#data1 = apply(data, 2, stand.fun)
+
+#Extract the clinical data
+clinicalData = data.frame(colData(vsd)[, c("Stage", "Bres", "ECOG", "treatment", "EventMet")])
+#Remove samples with missing information in any of the covariates
+clinicalData = clinicalData[complete.cases(clinicalData), ]
+
+#Make sure that the clinical data is in the same order as samples in the expression data
+seIdx = match(rownames(clinicalData), rownames(data))
+data = data[seIdx, ]
+colnames(data) = make.names(colnames(data))
+```
+```{r}
+#Subset the signature genes to those found in the expression data
+allSignatureGenes = allSignatureGenes[make.names(allSignatureGenes$Genes) %in% colnames(data), ]
+#Make sure that the clinical data is in the same order as samples in the expression data
+seIdx = match(colnames(data), make.names(allSignatureGenes$Genes))
+allSignatureGenes = allSignatureGenes[seIdx, ]
+
+```
+
+```{r}
+lundGenes = read.table("~/Downloads/Overlap_with_Lund_dataset.txt", sep = "\t", header = TRUE, quote = "")
+select = rownames(res.annot)[which(res.annot$Name %in% gsub("\"", "", lundGenes$X.Lund.))]
+dataLund = t(data.frame(assay(vsd)[select, ]))
+
+#Replace ENSEMBL IDs with corresponding gene names
+colnames(dataLund) = res.annot$Name[which(rownames(res.annot) %in% select)]
+
+#Remove genes with duplicated names
+dataLund = dataLund[, !duplicated(colnames(dataLund))]
+dim(dataLund)
+```
+
+```{r}
+i = allSignatureGenes$Genes[allSignatureGenes$Signature == "Cam_121"]
+j = allSignatureGenes$Genes[allSignatureGenes$Signature %in% c("LMC_150",                                                                                 "LMC_150+Gerami_27")]
+k = allSignatureGenes$Genes[allSignatureGenes$Signature %in% c("Gerami_27",                                                                                 "LMC_150+Gerami_27")]
+df_avastM = data.frame("Value" = c(apply(data[, make.names(i)], 1, median), 
+                            apply(data[, make.names(j)], 1, median), 
+                            apply(data[, make.names(k)], 1, median)
+                            ,apply(dataLund, 1, median)
+                            ), 
+                "Signature" = c(rep("Cam_121", 194), rep("LMC_150", 194), rep("Gerami_27", 194),
+                                rep("Lund_DASL", 194)
+                                ),
+                "Dataset" = c(rep("AVAST-M Skin", 776)))
+g1<-ggplot(df_avastM, aes(x=Signature, y = Value, fill = Signature))+
+  geom_violin(position="dodge", alpha=0.5)+
+  geom_boxplot(width=0.1)+
+  scale_fill_brewer(type="qual", palette = "Dark2")+
+  ylab("Median signature expression (vst normalized)")+
+  xlab("")
+```
+
+### Loading the TCGA data
+
+```{r}
+# load("~/Downloads/1-tcga_vst.rd")
+# tcga_vst = tcga_vst[tcga_vst$type %in% c("01", "05"), ] #Extracting the primary melanoma samples.
+# tcgaExpressionData = t(tcga_vst[, 24:ncol(tcga_vst)])
+# rownames(tcgaExpressionData) = gsub("[[:punct:]].*","", rownames(tcgaExpressionData))
+# 
+# lundGenes = read.table("../../Downloads/LUND_overallsurvival.txt", sep = "\t", header = TRUE, quote = "")
+# select = rownames(res.annot)[which(res.annot$Name %in% as.character(lundGenes$gene))]
+# dataLund = t(data.frame(tcgaExpressionData[intersect(select, rownames(tcgaExpressionData)), ]))
+# 
+# #Replace ENSEMBL IDs with corresponding gene names
+# colnames(dataLund) = res.annot$Name[which(rownames(res.annot) %in% intersect(select, colnames(dataLund)))]
+# 
+# #Remove genes with duplicated names
+# dataLund = dataLund[, !duplicated(colnames(dataLund))]
+# dim(dataLund)
+```
+```{r}
+rawExpressionData = read.table("~/Downloads/TCGA_RNASeqRawCounts.txt", sep = " ", header = TRUE, quote = "")
+
+rawExpressionDataSubset = rawExpressionData[-c(60484:60488), 2:ncol(rawExpressionData)]
+rownames(rawExpressionDataSubset) = gsub("\"", "", rawExpressionData$X..[-c(60484:60488)])
+
+rownames(rawExpressionDataSubset) = gsub("[[:punct:]].*","", rownames(rawExpressionDataSubset))
+
+#Load the clinical data
+clinicalDataSampleId = read.table("~/Downloads/Clinical_details.xlsx - Sheet2.tsv", sep = "\t", header = TRUE, quote = "")
+
+#Make sure that the clinical data is in the same order as expression data
+rownames(clinicalDataSampleId) = paste("X.", make.names(clinicalDataSampleId$sampleID), ".", sep = "")
+
+select = rownames(res.annot)[which(res.annot$Name %in% c(allSignatureGenes$Genes, gsub("\"", "", lundGenes$X.Lund.)))]
+tcgaExpressionData = t(data.frame(rawExpressionDataSubset[select,
+                                                        colnames(rawExpressionDataSubset) %in% rownames(clinicalDataSampleId)[clinicalDataSampleId$tumor_tissue_site %in% c("Primary Tumor", "Regional Cutaneous or Subcutaneous Tissue (includes satellite and in-transit metastasis)")]]))
+colnames(tcgaExpressionData) = res.annot$Name[which(rownames(res.annot) %in% select)]
+tcgaExpressionData = t(tcgaExpressionData)
+tcgaExpressionData = na.omit(tcgaExpressionData)
+
+clinicalData = clinicalDataSampleId[rownames(clinicalDataSampleId)%in%colnames(tcgaExpressionData), ]
+#Make sure that the clinical data is in the same order as the sample expression data
+seIdx = match(colnames(tcgaExpressionData), rownames(clinicalData))
+clinicalData = clinicalData[seIdx, ]
+
+library("DESeq2")
+dds <- DESeqDataSetFromMatrix(countData = tcgaExpressionData,
+                              colData = clinicalData,
+                              design = ~ 1)
+dds
+
+library("vsn")
+vsd = varianceStabilizingTransformation(dds, fitType="local")
+meanSdPlot(assay(vsd))
+
+tcga_vstNormalizedExpressionData = t(assay(vsd))
+```
+
+```{r}
+# load("~/Downloads/1-tcga_vst.rd")
+# tcga_vst = tcga_vst[tcga_vst$type %in% c("01", "05"), ] #Extracting the primary melanoma samples.
+# tcgaExpressionData = t(tcga_vst[, 24:ncol(tcga_vst)])
+# rownames(tcgaExpressionData) = gsub("[[:punct:]].*","", rownames(tcgaExpressionData))
+# select = rownames(res.annot)[which(res.annot$Name %in% allSignatureGenes$Genes)]
+# tcgaExpressionData = t(data.frame(tcgaExpressionData[intersect(select, rownames(tcgaExpressionData)), ]))
+# 
+# #Replace ENSEMBL IDs with corresponding gene names
+# colnames(tcgaExpressionData) = res.annot$Name[which(rownames(res.annot) %in% intersect(select, colnames(tcgaExpressionData)))]
+# 
+# #Remove genes with duplicated names
+# #tcgaExpressionData = tcgaExpressionData[, !duplicated(colnames(tcgaExpressionData))]
+# #dim(tcgaExpressionData)
+```
+
+```{r}
+i = allSignatureGenes$Genes[allSignatureGenes$Signature == "Cam_121"]
+j = allSignatureGenes$Genes[allSignatureGenes$Signature %in% c("LMC_150",                                                                                 "LMC_150+Gerami_27")]
+k = allSignatureGenes$Genes[allSignatureGenes$Signature %in% c("Gerami_27",                                                                                 "LMC_150+Gerami_27")]
+l = gsub("\"", "", lundGenes$X.Lund.)
+  
+df_tcga = data.frame("Value" = c(apply(tcga_vstNormalizedExpressionData[, intersect(make.names(i), colnames(tcga_vstNormalizedExpressionData))], 1, median), 
+                            apply(tcga_vstNormalizedExpressionData[, intersect(make.names(j), colnames(tcga_vstNormalizedExpressionData))], 1, median), 
+                            apply(tcga_vstNormalizedExpressionData[, intersect(make.names(k), colnames(tcga_vstNormalizedExpressionData))], 1, median),
+                            apply(tcga_vstNormalizedExpressionData[, intersect(make.names(l), colnames(tcga_vstNormalizedExpressionData))], 1, median)), 
+                "Signature" = c(rep("Cam_121", 159), rep("LMC_150", 159), rep("Gerami_27", 159),
+                                rep("Lund_DASL", 159)),
+                "Dataset" = c(rep("TCGA-SKCM Skin", 636)))
+                                #,rep("Lund_DASL", 80)))
+g2<-ggplot(df_tcga, aes(x=Signature, y = Value, fill = Signature))+
+  geom_violin(position="dodge", alpha=0.5)+
+  geom_boxplot(width=0.1)+
+  scale_fill_brewer(type="qual", palette = "Dark2")+
+  ylab("Median signature expression (vst normalized)")+
+  xlab("")
+```
+
+```{r}
+g2
+```
+
+```{r}
+df_combined = rbind(df_avastM, df_tcga)
+ggplot(df_combined, aes(x=Signature, y = Value, fill = Dataset))+
+  geom_violin(position="dodge", alpha=0.5)+
+  #geom_boxplot(width=0.1)+
+  scale_fill_brewer(type="qual", palette = "Dark2")+
+  ylab("Median signature expression (vst normalized)")+
+  xlab("")
+```
+
+```{r}
+ggpubr::ggarrange(g1, g2, labels = c("", ""), align = "h", common.legend = TRUE)
+ggsave("~/Desktop/Melanoma/Cam_121_LMC_150_Gerami_27_ViolinPlot.pdf", device = "pdf", units='cm', width = 16)
+ggsave("~/Desktop/Melanoma/Cam_121_LMC_150_Gerami_27_ViolinPlot.png", device = "png", units='cm', width = 16)
+```
+
+### Finding correlating genes between Cam_121-LMC-150, LMC_150-Cam-121
+```{r}
+library("stats")
+
+dfAll = data.frame()
+for (i in allSignatureGenes$Genes[allSignatureGenes$Signature == "Cam_121"]) {
+  for (j in allSignatureGenes$Genes[allSignatureGenes$Signature %in% c("Gerami_27",                                                                                 "LMC_150+Gerami_27")]) {
+    #print(i)
+    #print(j)
+    m = cor.test(data[, make.names(i)], data[, make.names(j)], method = "pearson")
+    temp = data.frame(
+    "Cam_121_gene" = i,
+    "Gerami_27_gene" = j,
+    "correlation" = as.numeric(m$estimate),
+    "pval" = as.numeric(m$p.value),
+    "tval" = as.numeric(m$statistic))
+    dfAll = rbind(temp, dfAll)
+  }
+}
+write.table(dfAll, "./Cam_121_Gerami_27_Correlation.tsv", sep = "\t", quote = FALSE, row.names = FALSE, col.names = TRUE)
+```
+
+```{r}
+allSignificantlyCorrelatedGenes = dfAll[dfAll$pval<=0.05, ]
+dfAllSorted = allSignificantlyCorrelatedGenes[order(allSignificantlyCorrelatedGenes$correlation, decreasing = TRUE), ]
+write.table(dfAllSorted, "./Cam_121_Gerami_27_SignificantCorrelationsP_05.tsv", sep = "\t", quote = FALSE, row.names = FALSE, col.names = TRUE)
+```
+
+```{r}
+library("RColorBrewer")
+
+dfAllSorted = read.table("./Cam_121_LMC_150_SignificantCorrelationsP_05.tsv", sep = "\t", quote = "", header = TRUE)
+correlationCutOff = 0.5
+dfAllSortedCorrCutOff = dfAllSorted[abs(dfAllSorted$correlation)>correlationCutOff, ]
+
+pal <- brewer.pal(n = 8, name = "RdBu")
+g1 <- ggplot(dfAllSortedCorrCutOff, aes(x = Cam_121_gene, y = LMC_150_gene, fill = correlation))+
+  geom_tile() +
+  scale_fill_gradientn(colours = pal, name = "Pearson's correlation coefficient")+
+  xlab("Cam_121")+
+  ylab("LMC_150")
+
+g1
+ggsave("Cam_121_LMC_150_absCor_0.5_pVal_0.5.png", device = "png", width = 8, height = 8)
+```
+
+```{r}
+dfAllSorted = read.table("./Cam_121_Gerami_27_SignificantCorrelationsP_05.tsv", sep = "\t", quote = "", header = TRUE)
+correlationCutOff = 0.75
+dfAllSortedCorrCutOff = dfAllSorted[abs(dfAllSorted$correlation)>correlationCutOff, ]
+
+pal <- brewer.pal(n = 8, name = "RdBu")
+g2 <- ggplot(dfAllSortedCorrCutOff, aes(x = Cam_121_gene, y = Decision.Dx_gene, fill = correlation))+
+  geom_tile() +
+  scale_fill_gradientn(colours = pal, name = "Pearson's correlation coefficient")+
+  xlab("Cam_121")+
+  ylab("Gerami_27 Melanoma")
+
+g2
+ggsave("Cam_121_Gerami_absCor_0.75_pVal_0.5.png", device = "png")
+```
+```{r}
+ggpubr::ggarrange(g1, g2, align = "v", ncol = 1, nrow = 2, heights = c(2, 1))
+```
+
+```{r}
+library("ggplot2")
+library("RColorBrewer")
+
+dfAllSorted = read.table("./Cam_121_LMC_150_SignificantCorrelationsP_05.tsv", sep = "\t", quote = "", header = TRUE)
+correlationCutOff = 0.8
+dfAllSortedCorrCutOff = dfAllSorted[abs(dfAllSorted$correlation)>=correlationCutOff, ]
+dfAllSortedCorrCutOff$Cam_121_gene = factor(dfAllSortedCorrCutOff$Cam_121_gene,
+                                               levels = c('PRF1', "CCR5", "GBP5", "GCH1"))
+
+pal <- brewer.pal(n = 8, name = "Blues")
+g1 <- ggplot(dfAllSortedCorrCutOff, aes(x = Cam_121_gene, y = LMC_150_gene, fill = correlation))+
+  geom_tile() +
+  scale_fill_gradientn(colours = pal, name = "Pearson's correlation coefficient")+
+  xlab("Cam_121")+
+  ylab("LMC_150")
+
+g1
+ggsave("Cam_121_LMC_150_absCor_0.8_pVal_0.5.png", device = "png", width = 8, height = 8)
+```
+
+```{r}
+genesWithCorrMoreThan0.8 = c(as.character(unique(dfAllSortedCorrCutOff$Cam_121_gene)),
+                             as.character(unique(dfAllSortedCorrCutOff$LMC_150_gene)))
+paste0(genesWithCorrMoreThan0.8, collapse = ",")
+
+#correlationCutOff = 0.75
+#dfAllSortedCorrCutOff = dfAllSorted[abs(dfAllSorted$correlation)>correlationCutOff, ]
+#genesWithCorrMoreThan0.75 = c(as.character(unique(dfAllSortedCorrCutOff$Cam_121_gene)),
+#                             as.character(unique(dfAllSortedCorrCutOff$LMC_150_gene)))
+#paste0(genesWithCorrMoreThan0.75, collapse = ",")
+```
+
+```{r}
+theme_set(ggpubr::theme_pubr(base_size=10, legend='bottom'))
+dfAllSorted = read.table("./Cam_121_LMC_150_SignificantCorrelationsP_05.tsv", sep = "\t", quote = "", header = TRUE)
+cutOff = seq(0.1, 1, by = 0.1)
+df = data.frame()
+for (i in cutOff) {
+  tempDf = data.frame("Cam_121" = length(unique(dfAllSorted$Cam_121_gene[dfAllSorted$correlation>=i]))*100/121,
+                      "LMC_150" = length(unique(dfAllSorted$LMC_150_gene[dfAllSorted$correlation>=i]))*100/126,
+                      "CutOff" = i)
+  df = rbind(tempDf, df)
+}
+
+library(reshape2)
+df = melt(data = df, id.vars = "CutOff", measure.vars = c("Cam_121", "LMC_150"))
+colnames(df)=c("CutOff", "Signature", "value")
+g1<- ggplot(df, aes(x = CutOff, y = value, color = Signature))+
+  geom_line(aes(linetype = Signature))+
+  geom_point(alpha= 0.5)+
+  #scale_color_brewer(type = "qual", palette = "Dark2", name = "Signature")+
+  xlab("Pearson's correlation coefficient (absolute)")+
+  ylab("(%) Genes remaining in each signature")+
+  ylim(c(0,100))+
+  #xlim(c(0, 1))+
+  scale_x_continuous(breaks=seq(0,1,0.10))+
+  geom_vline(xintercept=0.8, lty = "dashed", color = "grey")+
+  annotate("text", x=0.875, y=75, label="cutoff", color="grey")
+#ggsave("Cam_121_LMC_150_CorrDist.png", device = "png", width = 8, height = 8)
+```
+
+```{r}
+theme_set(ggpubr::theme_pubr(base_size=10, legend='bottom'))
+dfAllSorted = read.table("./Cam_121_Gerami_27_SignificantCorrelationsP_05.tsv", sep = "\t", quote = "", header = TRUE)
+cutOff = seq(0.1, 1, by = 0.1)
+df = data.frame()
+for (i in cutOff) {
+  tempDf = data.frame("Cam_121" = length(unique(dfAllSorted$Cam_121_gene[dfAllSorted$correlation>=i]))*100/121,
+                      "Decision_Dx" = length(unique(dfAllSorted$Decision.Dx_gene[dfAllSorted$correlation>=i]))*100/27,
+                      "CutOff" = i)
+  df = rbind(tempDf, df)
+}
+
+library(reshape2)
+df = melt(data = df, id.vars = "CutOff", measure.vars = c("Cam_121", "Decision_Dx"))
+colnames(df)=c("CutOff", "Signature", "value")
+g2<-ggplot(df, aes(x = CutOff, y = value, color = Signature))+
+  geom_line(aes(linetype = Signature))+
+  geom_point(alpha= 0.5)+
+  #scale_color_manual(name = "Signature")+
+  xlab("Pearson's correlation coefficient (absolute)")+
+  ylab("(%) Genes remaining in each signature")+
+  ylim(c(0,100))+
+  #xlim(c(0,1))+
+  scale_x_continuous(breaks=seq(0,1,0.10))+
+  geom_vline(xintercept=0.8, lty = "dashed", color = "grey")+
+  annotate("text", x=0.875, y=75, label="cutoff", color="grey")
+
+ggpubr::ggarrange(g1, g2,labels = c("A", "B"), align = "h")
+ggsave("Cam_121_LMC_150_Gerami_27_CorrDist.pdf", device = "pdf", units='cm', width = 16)
+ggsave("Cam_121_LMC_150_Gerami_27_CorrDist.png", device = "png", units='cm', width = 16)
+```
+
+```{r}
+correlationCutOff = 0.8
+dfAllSortedCorrCutOff = dfAllSorted[abs(dfAllSorted$correlation)>=correlationCutOff, ]
+non_overlappingCam_121 = setdiff(unique(dfAllSorted$Cam_121_gene[abs(dfAllSorted$correlation)<correlationCutOff]), unique(dfAllSorted$Cam_121_gene[abs(dfAllSorted$correlation)>=correlationCutOff]))
+non_overlappingLMC_150 = setdiff(unique(dfAllSorted$LMC_150_gene[abs(dfAllSorted$correlation)<correlationCutOff]), unique(dfAllSorted$LMC_150_gene[abs(dfAllSorted$correlation)>=correlationCutOff]))
+
+paste0(non_overlappingCam_121, collapse = ",")
+paste0(non_overlappingLMC_150, collapse = ",")
+```
+<!-- ### Hierarchical clustering of all the genes in all the 3 signatures together -->
+
+<!-- https://www.r-bloggers.com/consensus-clustering-in-r/ -->
+<!-- ```{r} -->
+<!-- #BiocManager::install("M3C") -->
+<!-- library("pvclust") -->
+<!-- ``` -->
+<!-- ```{r} -->
+<!-- #pc <- pvclust(data, method.hclust = "ward.D2", method.dist = "euclidean", use.cor = NULL, -->
+<!-- #              nboot = 1000, parallel = TRUE, -->
+<!-- #              iseed = 1220, quiet = FALSE, store = FALSE) -->
+
+<!-- load("./pvClusters1000AllSignatures.Rdata") -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- plot(pc) -->
+<!-- pvrect(pc) -->
+<!-- ## print the result of multiscale bootstrap resampling -->
+<!-- print(pc, digits=3) -->
+<!-- ## plot diagnostic for curve fitting -->
+<!-- msplot(pc, edges=c(2,4,6,7)) -->
+<!-- #dev.off() -->
+<!-- pc.pp <- pvpick(pc) -->
+<!-- pc.pp -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- save(pc, file = "./pvClusters1000AllSignatures.Rdata") -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- library("dendextend") -->
+<!-- library("RColorBrewer") -->
+<!-- dend <-as.dendrogram(pc) -->
+<!-- numContrasts = length(unique(allSignatureGenes$Signature)) -->
+<!-- getPalette = colorRampPalette(brewer.pal(8, "Dark2")) -->
+
+<!-- labels_colors(dend) = getPalette(numContrasts)[sort_levels_values(as.numeric(allSignatureGenes$Signature)[order.dendrogram(dend)])] -->
+<!-- dend <- set(dend, "leaves_pch", 19) -->
+<!-- dend <- set(dend, "leaves_col", labels_colors(dend)) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- #library("ggdendro") -->
+<!-- #ggdendrogram(dend, rotate = TRUE, theme_dendro = FALSE) -->
+<!-- #dev.off() -->
+<!-- # Define nodePar -->
+<!-- #nodePar <- list(lab.cex = 0.6, pch = c(19),  -->
+<!-- #                cex = 0.7, col = labels_colors(dend)) -->
+<!-- # Customized plot; remove labels -->
+<!-- plot(dend, ylab = "Height", leaflab = "none") -->
+<!-- legend("topright", legend = levels(allSignatureGenes$Signature), fill = c("#BBA90B", "#1B9E77", "#9B58A5", "#666666")) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- ggd1 <- as.ggdend(dend) -->
+<!-- # Use ylim to deal with long labels in ggplot2 -->
+<!-- ggplot(ggd1, horiz = TRUE, labels = FALSE)  -->
+
+<!-- d1<- ggplot(ggd1, labels = FALSE) + ylim(-.4, max(get_branches_heights(dend))) + -->
+<!--   scale_x_reverse() -->
+<!--   #theme(legend.text = element_text(colour = c("#BBA90B", "#1B9E77", "#9B58A5", "#666666"))) -->
+<!--   #scale_fill_manual(values=c("#BBA90B", "#1B9E77", "#9B58A5", "#666666"),  -->
+<!--   #                     name="Signature", -->
+<!--   #                     labels=levels(allSignatureGenes$Signature)) -->
+
+<!-- ggplot(ggd1, labels = FALSE) + scale_y_reverse(expand = c(0.2, 0)) + coord_polar(theta = "x") -->
+
+<!-- #ggplot(ggd1, labels = FALSE) + scale_y_reverse(expand = c(0.2, 0)) + coord_polar(theta = "x") -->
+
+<!-- #ggdendrogram(dend, rotate = TRUE, theme_dendro = FALSE) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- library("ape") -->
+<!-- clus4 = cutree(dend, 4) -->
+<!-- colors = c("red", "blue", "green", "black") -->
+<!-- #clus4 = cutree(hc, 4) -->
+<!-- plot(as.phylo(dend), type = "fan", tip.color = colors[clus4], -->
+<!--      label.offset = 1, cex = 0.7) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- df = data.frame("Cluster" = clus4, "Signature" = allSignatureGenes$Signature) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- write.table(df, "./GeneInEachCluster.tsv", sep = "\t", col.names = TRUE, row.names = TRUE, quote = FALSE) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- table(df$Cluster, df$Signature)/sum(table(df$Cluster, df$Signature)) -->
+<!-- ``` -->
+
+```{r}
+tcgaClusters = read.table("~/Downloads/TCGA_three_classes.txt", sep = "\t", header = TRUE, quote = "")
+```
+
+```{r}
+immuneClusterExprs = t(data.frame(assay(vsd)[rownames(res.annot)[which(res.annot$Name %in% tcgaClusters$TCGA_Immune_cluster)], ]))
+keratinClusterExprs = t(data.frame(assay(vsd)[rownames(res.annot)[which(res.annot$Name %in% tcgaClusters$TCGA_Keratin_cluster)], ]))
+mitfLowClusterExprs = t(data.frame(assay(vsd)[rownames(res.annot)[which(res.annot$Name %in% tcgaClusters$TCGA_MITF_low_cluster)], ]))
+```
+
+```{r}
+calculateMedianExpression <- function(expressionData){
+  reducedExpression = apply(expressionData, 1, median)
+  #pcaResults = prcomp(expressionData)
+  #reducedSignature = pcaResults$x[, 1]
+  return(reducedExpression)
+}
+```
+
+```{r}
+tcgaClusterExprs = data.frame("Immune" = calculateMedianExpression(immuneClusterExprs),
+"Keratin" = calculateMedianExpression(keratinClusterExprs),
+"MITF_low" = calculateMedianExpression(mitfLowClusterExprs))
+
+pvClusterExprs = data.frame("Cluster1" = calculateMedianExpression(data[, genesWithCorrMoreThan0.8]),
+                            "Cluster2" = calculateMedianExpression(data[, make.names(non_overlappingCam_121)]),
+                            "Cluster3" = calculateMedianExpression(data[, make.names(non_overlappingLMC_150)]))
+```
+
+```{r}
+library("stats")
+cor(pvClusterExprs, tcgaClusterExprs, method = "pearson")
+```
+
+```{r}
+dfAll = data.frame()
+for (i in 1:ncol(pvClusterExprs)) {
+  for (j in 1:ncol(tcgaClusterExprs)) {
+    m = cor.test(pvClusterExprs[, i], tcgaClusterExprs[, j], method = "pearson")
+    temp = data.frame(
+    "pvCluster" = colnames(pvClusterExprs)[i],
+    "tcgaCluster" = colnames(tcgaClusterExprs)[j],
+    "correlation" = as.numeric(m$estimate),
+    "pval" = as.numeric(m$p.value),
+    "tval" = as.numeric(m$statistic))
+    dfAll = rbind(temp, dfAll)
+  }
+}
+```
+
+```{r}
+dfAll$Pvalue<-as.factor(sapply(1:nrow(dfAll), function(x) if(dfAll$pval[x]<=0.001){"<=0.001"}else{
+  if(dfAll$pval[x]<=0.01){"<=0.01"}else{
+    if(dfAll$pval[x]<=0.05){"<=0.05"}else{">0.05"}}}))
+
+dfAll$pvCluster <- factor(dfAll$pvCluster, levels = c("Cluster1", "Cluster2", "Cluster3"))
+#levels(dfAll$Pvalue)<-c("<=0.001", "<=0.01", "<=0.05", ">0.05")
+
+heat<-ggplot(dfAll, aes(x=pvCluster, y=tcgaCluster, fill = Pvalue)) +
+  geom_tile(color = "black",size=0.5) +
+  geom_text(aes(label = round(correlation, 4)))+
+  #theme_gray(8)+
+  scale_fill_manual(values = c("#1F78B4", "#A6CEE3"))+
+  #theme(#axis.text = element_text(size =16, color="black"),
+        #axis.title = element_text(size =18),
+        #legend.text = element_text(size =16),
+        #legend.title = element_text(size =16),
+        #legend.position = c(1.23, 0.75), legend.justification = c(1,1),
+        #plot.margin=unit(c(-0.3,3.2,1,2.5),"cm"),
+        #panel.background = element_blank(),
+        #panel.grid.major = element_blank(),
+        #panel.grid.minor = element_blank())+
+  xlab(NULL) + ylab("TCGA SKCM gene clusters")
+heat
+
+#fractions <- ggplot(df, aes(x = Cluster, fill = Signature))+
+#  geom_histogram(position="dodge", bins = 4) +
+#  ylab("Gene Count") +
+#  xlab("Consensus hierarchical cluster")+
+#  scale_fill_manual(values = c("#BBA90B", "#1B9E77", "#9B58A5", "#666666"))
+
+#ggpubr::ggarrange(d1, fractions, heat, ncol = 1, nrow = 3, align = "v")
+ggsave("SignatureTCGACorrelationPlot.png", device = "png")
+```
+
+```{r}
+write.table(dfAll, "./CorrelationValuesOurClustersVsTcgaCluster.tsv", sep = "\t", col.names = TRUE, row.names = TRUE, quote = FALSE)
+```
+
+```{r}
+ggplot(data = dfAll, aes(x=pvCluster, y=tcgaCluster, fill=correlation)) +
+  geom_tile() +
+  scale_fill_viridis_b()
+```
+
+```{r}
+
+```
+
+# ```{r}
+# numContrasts = length(unique(allSignatureGenes$Signature))
+# labels_colors(dend) <- 
+# ```
+# 
+# ```{r}
+# test <- M3C(data)
+# ```
+# 
+# https://www.bioconductor.org/packages/release/bioc/vignettes/ConsensusClusterPlus/inst/doc/ConsensusClusterPlus.pdf
+# ```{r}
+# #BiocManager::install("ConsensusClusterPlus")
+# library(ConsensusClusterPlus)
+# ```
+# 
+# ```{r}
+# title="example"
+# results = ConsensusClusterPlus(data,maxK=6,reps=100,pItem=0.8,pFeature=1,title=title,clusterAlg="hc",distance="euclidean",seed=1262118388.71279,plot="png")
+# ```
+
+

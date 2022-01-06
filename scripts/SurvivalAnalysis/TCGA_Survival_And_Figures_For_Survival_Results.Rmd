@@ -664,7 +664,7 @@ g3 <- ggplot(data=df,
     theme_set(ggpubr::theme_pubr(base_size=10, legend='bottom'))
    
 #ggarrange(g1, g2, align = "h", ncol = 1, nrow = 2, heights = c(4, 4))
-ggsave(plot = g3, filename = "Cam_121_OS.png", device = "png", width = 16, units = "cm")
+ggsave(plot = g3, filename = "~/Desktop/Melanoma/Cam_121_OS_PFS.pdf", device = "pdf", width = 16, units = "cm")
 ```
 
 ## Published signatures
@@ -672,34 +672,34 @@ ggsave(plot = g3, filename = "Cam_121_OS.png", device = "png", width = 16, units
 os = read.table("~/Desktop/Melanoma/SurvivalResults_Gerami_genes_OS_High_median_3.tsv", sep = "\t", header = TRUE, quote = "")
 os = os[7:nrow(os),]
 os = os[-2,]
-os$Group = c("Decision-Dx", 
-             "Decision-Dx+Sex", 
-             "Decision-Dx+Age", 
-             "Decision-Dx+Stage", 
-             "Decision-Dx+ECOG", 
-             "Decision-Dx+Treatment", 
-             "Decision-Dx+Nclass",
-             "Decision-Dx+Sex+Age+Stage+\nECOG+treatment+Nclass",
-             "Decision-Dx+Sex+Age+Stage+\nECOG+treatment+Nclass+\nTIL count")
+os$Group = c("Gerami_27", 
+             "Gerami_27+Sex", 
+             "Gerami_27+Age", 
+             "Gerami_27+Stage", 
+             "Gerami_27+ECOG", 
+             "Gerami_27+Treatment", 
+             "Gerami_27+Nclass",
+             "Gerami_27+Sex+Age+Stage+\nECOG+treatment+Nclass",
+             "Gerami_27+Sex+Age+Stage+\nECOG+treatment+Nclass+\nTIL count")
 os$Event = c("OS")
 
 pfs = read.table("~/Desktop/Melanoma/SurvivalResults_Gerami_genes_PFS_High_median_3.tsv", sep = "\t", header = TRUE, quote = "")
 pfs = pfs[7:nrow(pfs), ]
 pfs = pfs[-2, ]
-pfs$Group = c("Decision-Dx", 
-             "Decision-Dx+Sex", 
-             "Decision-Dx+Age", 
-             "Decision-Dx+Stage", 
-             "Decision-Dx+ECOG", 
-             "Decision-Dx+Treatment", 
-             "Decision-Dx+Nclass",
-             "Decision-Dx+Sex+Age+Stage+\nECOG+treatment+Nclass",
-             "Decision-Dx+Sex+Age+Stage+\nECOG+treatment+Nclass+\nTIL count")
+pfs$Group = c("Gerami_27", 
+             "Gerami_27+Sex", 
+             "Gerami_27+Age", 
+             "Gerami_27+Stage", 
+             "Gerami_27+ECOG", 
+             "Gerami_27+Treatment", 
+             "Gerami_27+Nclass",
+             "Gerami_27+Sex+Age+Stage+\nECOG+treatment+Nclass",
+             "Gerami_27+Sex+Age+Stage+\nECOG+treatment+Nclass+\nTIL count")
 pfs$Event = c("PFS")
 
 df = rbind(os, pfs)
 df$Group = as.factor(df$Group)
-df$Group = factor(df$Group, levels = c("Decision-Dx+Sex+Age+Stage+\nECOG+treatment+Nclass+\nTIL count","Decision-Dx+Sex+Age+Stage+\nECOG+treatment+Nclass", "Decision-Dx+Treatment","Decision-Dx+Stage","Decision-Dx+Sex","Decision-Dx+ECOG","Decision-Dx+Age","Decision-Dx+Nclass","Decision-Dx"))
+df$Group = factor(df$Group, levels = c("Gerami_27+Sex+Age+Stage+\nECOG+treatment+Nclass+\nTIL count","Gerami_27+Sex+Age+Stage+\nECOG+treatment+Nclass", "Gerami_27+Treatment","Gerami_27+Stage","Gerami_27+Sex","Gerami_27+ECOG","Gerami_27+Age","Gerami_27+Nclass","Gerami_27"))
 df$Event = as.factor(df$Event)
 
 g4 <- ggplot(data=df,
@@ -716,10 +716,12 @@ g4 <- ggplot(data=df,
     ylim(c(0,2))+
     scale_color_brewer(type = "qual", palette = "Set2")+
     coord_flip()+
-    theme_set(ggpubr::theme_pubr(base_size=10, legend='bottom'))
+    theme_set(ggpubr::theme_pubr(base_size=10, legend='top'))
    
 #ggarrange(g1, g2, align = "h", ncol = 1, nrow = 2, heights = c(4, 4))
-ggsave(plot = g4, filename = "Gerami_OS.png", device = "png", width = 16, units = "cm")
+ggsave(plot = g4, filename = "~/Desktop/Melanoma/FigureS6a.pdf", device = "pdf", width = 16, units = "cm")
+
+ggsave(plot = g4, filename = "~/Desktop/Melanoma/FigureS6a.png", device = "png", width = 16, units = "cm")
 
 ```
 
@@ -771,16 +773,19 @@ g5 <- ggplot(data=df,
     ylim(c(0,2))+
     scale_color_brewer(type = "qual", palette = "Set2")+
     coord_flip()+
-    theme_set(ggpubr::theme_pubr(base_size=10, legend='bottom'))
+    theme_set(ggpubr::theme_pubr(base_size=10, legend='none'))
    
 #ggarrange(g1, g2, align = "h", ncol = 1, nrow = 2, heights = c(4, 4))
-ggsave(plot = g5, filename = "Gerami_OS.png", device = "png", width = 16, units = "cm")
+ggsave(plot = g5, filename = "~/Desktop/Melanoma/FigureS6b.pdf", device = "pdf", width = 16, units = "cm")
+
+ggsave(plot = g5, filename = "~/Desktop/Melanoma/FigureS6b.png", device = "png", width = 16, units = "cm")
 
 ```
 ```{r}
+library(ggpubr)
 ggarrange(g4, g5, ncol = 1, nrow = 2, align = "v", common.legend = TRUE,
-          heights = c(1, 1), labels = c("A", "B"))
-ggsave("PubSigSurv.png", width = 16, height = 16, units = "cm", device = "png")
+          heights = c(1, 1), labels = c("a", "b"))
+ggsave("~/Desktop/Melanoma/FigureS6.pdf", width = 16, height=21, units = "cm", device = "pdf")
 ```
 ## LN
 
